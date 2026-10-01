@@ -61,6 +61,11 @@ public sealed class ApiIntegrationTests : IDisposable
         var goalResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/goals", new GoalRequest(
             "Meta aislada", "Solo pertenece al proyecto Alfa", "contactos", 10, "active", null));
         goalResponse.EnsureSuccessStatusCode();
+        var createdGoal = (await goalResponse.Content.ReadFromJsonAsync<GoalResponse>())!;
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/projects/{first.Id}/goals/{createdGoal.Id}", new GoalRequest(
+            "Meta actualizada", "Continúa aislada en Alfa", "contactos", 12, "active", null));
+        updateResponse.EnsureSuccessStatusCode();
 
         var firstDetail = await client.GetFromJsonAsync<ProjectResponse>($"/api/projects/{first.Id}");
         var secondDetail = await client.GetFromJsonAsync<ProjectResponse>($"/api/projects/{second.Id}");
@@ -69,7 +74,15 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.NotNull(secondDetail);
         Assert.Single(firstDetail.Goals);
         Assert.Equal(first.Id, firstDetail.Goals.Single().ProjectId);
+        Assert.Equal("Meta actualizada", firstDetail.Goals.Single().Title);
+        Assert.Equal(12, firstDetail.Goals.Single().TargetValue);
         Assert.Empty(secondDetail.Goals);
+
+        var deleteResponse = await client.DeleteAsync($"/api/projects/{first.Id}/goals/{createdGoal.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        var afterDelete = await client.GetFromJsonAsync<ProjectResponse>($"/api/projects/{first.Id}");
+        Assert.NotNull(afterDelete);
+        Assert.Empty(afterDelete.Goals);
     }
 
     [Fact]
