@@ -14,6 +14,10 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
     public DbSet<SeoOpportunity> SeoOpportunities => Set<SeoOpportunity>();
     public DbSet<ContentPiece> ContentPieces => Set<ContentPiece>();
     public DbSet<EditorialHistory> EditorialHistory => Set<EditorialHistory>();
+    public DbSet<ApiRatePlan> ApiRatePlans => Set<ApiRatePlan>();
+    public DbSet<ProjectBudget> ProjectBudgets => Set<ProjectBudget>();
+    public DbSet<ExecutionRecord> Executions => Set<ExecutionRecord>();
+    public DbSet<ExecutionAudit> ExecutionAudit => Set<ExecutionAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,5 +138,59 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
             .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
         history.HasOne(item => item.ContentPiece).WithMany(item => item.History)
             .HasForeignKey(item => item.ContentPieceId).OnDelete(DeleteBehavior.Cascade);
+
+        var rate = modelBuilder.Entity<ApiRatePlan>();
+        rate.HasKey(item => item.Id);
+        rate.HasIndex(item => new { item.ProjectId, item.Provider, item.Model, item.EffectiveFrom });
+        rate.Property(item => item.Provider).HasMaxLength(80);
+        rate.Property(item => item.Model).HasMaxLength(120);
+        rate.Property(item => item.InputUsdPerMillion).HasPrecision(18, 8);
+        rate.Property(item => item.OutputUsdPerMillion).HasPrecision(18, 8);
+        rate.HasOne(item => item.Project).WithMany(item => item.ApiRatePlans)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+        var budget = modelBuilder.Entity<ProjectBudget>();
+        budget.HasKey(item => item.Id);
+        budget.HasIndex(item => item.ProjectId).IsUnique();
+        budget.Property(item => item.DailyLimitUsd).HasPrecision(18, 6);
+        budget.Property(item => item.MonthlyLimitUsd).HasPrecision(18, 6);
+        budget.Property(item => item.ExchangeRateGtqPerUsd).HasPrecision(18, 6);
+        budget.HasOne(item => item.Project).WithOne(item => item.Budget)
+            .HasForeignKey<ProjectBudget>(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+        var execution = modelBuilder.Entity<ExecutionRecord>();
+        execution.HasKey(item => item.Id);
+        execution.HasIndex(item => new { item.ProjectId, item.IdempotencyKey }).IsUnique();
+        execution.HasIndex(item => new { item.ProjectId, item.CreatedAt });
+        execution.HasIndex(item => new { item.ProjectId, item.Status });
+        execution.Property(item => item.IdempotencyKey).HasMaxLength(160);
+        execution.Property(item => item.Provider).HasMaxLength(80);
+        execution.Property(item => item.Model).HasMaxLength(120);
+        execution.Property(item => item.Flow).HasMaxLength(120);
+        execution.Property(item => item.Status).HasMaxLength(30);
+        execution.Property(item => item.ApprovedBy).HasMaxLength(120);
+        execution.Property(item => item.EstimatedCostUsd).HasPrecision(18, 8);
+        execution.Property(item => item.EstimatedCostGtq).HasPrecision(18, 6);
+        execution.Property(item => item.ErrorCode).HasMaxLength(80);
+        execution.Property(item => item.ErrorMessage).HasMaxLength(1000);
+        execution.HasOne(item => item.Project).WithMany(item => item.Executions)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        execution.HasOne(item => item.ApiRatePlan).WithMany(item => item.Executions)
+            .HasForeignKey(item => item.ApiRatePlanId).OnDelete(DeleteBehavior.Restrict);
+        execution.HasOne(item => item.ParentExecution).WithMany(item => item.Retries)
+            .HasForeignKey(item => item.ParentExecutionId).OnDelete(DeleteBehavior.Restrict);
+
+        var executionAudit = modelBuilder.Entity<ExecutionAudit>();
+        executionAudit.HasKey(item => item.Id);
+        executionAudit.HasIndex(item => new { item.ProjectId, item.ExecutionRecordId, item.OccurredAt });
+        executionAudit.Property(item => item.EventType).HasMaxLength(60);
+        executionAudit.Property(item => item.FromStatus).HasMaxLength(30);
+        executionAudit.Property(item => item.ToStatus).HasMaxLength(30);
+        executionAudit.Property(item => item.Note).HasMaxLength(1000);
+        executionAudit.Property(item => item.Actor).HasMaxLength(120);
+        executionAudit.HasOne(item => item.Project).WithMany(item => item.ExecutionAudit)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        executionAudit.HasOne(item => item.ExecutionRecord).WithMany(item => item.Audit)
+            .HasForeignKey(item => item.ExecutionRecordId).OnDelete(DeleteBehavior.Cascade);
     }
 }

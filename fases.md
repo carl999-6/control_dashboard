@@ -70,7 +70,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: flujo editorial manual completo y simulación de envío como borrador.
 - Criterios de aceptación: cada pieza conserva hipótesis, línea base, responsable, estado e historial.
 - Cómo se probará: pruebas de transiciones y recorrido editorial.
-- Estado: lista para revisión.
+- Estado: aprobada.
 
 ### Fase 5 — Ejecuciones, aprobaciones, consumo y presupuestos
 
@@ -80,7 +80,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: panel de costos, reglas de bloqueo y pruebas de concurrencia/idempotencia.
 - Criterios de aceptación: un flujo sobre presupuesto se bloquea y toda ejecución es trazable.
 - Cómo se probará: escenarios de éxito, fallo, reintento, duplicado y cuota agotada.
-- Estado: pendiente.
+- Estado: lista para revisión.
 
 ### Fase 6 — Telegram de prueba y recuperación de fallos
 

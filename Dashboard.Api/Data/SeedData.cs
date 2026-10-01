@@ -15,6 +15,12 @@ public static class SeedData
     public static readonly Guid FyrSeoUpdateOpportunityId = Guid.Parse("11111111-ffff-4111-8111-111111111111");
     public static readonly Guid FyrContentPieceId = Guid.Parse("11111111-1234-4111-8111-111111111111");
     public static readonly Guid FyrScheduledContentId = Guid.Parse("11111111-5678-4111-8111-111111111111");
+    public static readonly Guid FyrRatePlanId = Guid.Parse("11111111-9001-4111-8111-111111111111");
+    public static readonly Guid FyrHistoricalRatePlanId = Guid.Parse("11111111-9002-4111-8111-111111111111");
+    public static readonly Guid FyrBudgetId = Guid.Parse("11111111-9003-4111-8111-111111111111");
+    public static readonly Guid FyrSucceededExecutionId = Guid.Parse("11111111-9101-4111-8111-111111111111");
+    public static readonly Guid FyrApprovalExecutionId = Guid.Parse("11111111-9102-4111-8111-111111111111");
+    public static readonly Guid FyrFailedExecutionId = Guid.Parse("11111111-9103-4111-8111-111111111111");
 
     public static async Task InitializeAsync(DashboardDbContext db, CancellationToken cancellationToken = default)
     {
@@ -211,6 +217,93 @@ public static class SeedData
                 Actor = "Administrador local", ChangedAt = now,
             });
             db.ContentPieces.AddRange(reviewPiece, scheduledPiece);
+        }
+
+        if (!await db.ApiRatePlans.AnyAsync(item => item.ProjectId == FyrStudiosId, cancellationToken))
+        {
+            var now = DateTimeOffset.UtcNow;
+            var historicalRate = new ApiRatePlan
+            {
+                Id = FyrHistoricalRatePlanId, ProjectId = FyrStudiosId, Provider = "gemini", Model = "gemini-flash-demo",
+                InputUsdPerMillion = 0.08m, OutputUsdPerMillion = 0.30m, EffectiveFrom = now.AddMonths(-3),
+                IsActive = false, IsDemoData = true, CreatedAt = now.AddMonths(-3),
+            };
+            var activeRate = new ApiRatePlan
+            {
+                Id = FyrRatePlanId, ProjectId = FyrStudiosId, Provider = "gemini", Model = "gemini-flash-demo",
+                InputUsdPerMillion = 0.10m, OutputUsdPerMillion = 0.40m, EffectiveFrom = now.AddMonths(-1),
+                IsActive = true, IsDemoData = true, CreatedAt = now.AddMonths(-1),
+            };
+            db.ApiRatePlans.AddRange(historicalRate, activeRate);
+            db.ProjectBudgets.Add(new ProjectBudget
+            {
+                Id = FyrBudgetId, ProjectId = FyrStudiosId, DailyLimitUsd = 2m, MonthlyLimitUsd = 25m,
+                WarningPercent = 75, ExchangeRateGtqPerUsd = 7.75m, IsPaused = false, UpdatedAt = now,
+            });
+
+            var succeeded = new ExecutionRecord
+            {
+                Id = FyrSucceededExecutionId, ProjectId = FyrStudiosId, ApiRatePlanId = FyrRatePlanId,
+                IdempotencyKey = "demo-seo-brief-001", Provider = "gemini", Model = "gemini-flash-demo",
+                Flow = "seo_brief", Status = "succeeded", ApprovalRequired = true, ApprovedBy = "Administrador local",
+                ApprovedAt = now.AddDays(-2).AddMinutes(2), InputUnits = 8400, OutputUnits = 2100,
+                EstimatedCostUsd = 0.00168m, EstimatedCostGtq = 0.01302m, AttemptNumber = 1,
+                ErrorCode = string.Empty, ErrorMessage = string.Empty, IsDemoData = true,
+                CreatedAt = now.AddDays(-2), StartedAt = now.AddDays(-2).AddMinutes(3), CompletedAt = now.AddDays(-2).AddMinutes(4),
+            };
+            succeeded.Audit.Add(new ExecutionAudit
+            {
+                Id = Guid.NewGuid(), ProjectId = FyrStudiosId, ExecutionRecordId = succeeded.Id,
+                EventType = "planned", FromStatus = string.Empty, ToStatus = "awaiting_approval",
+                Note = "Estimación creada con tarifa versionada.", Actor = "Sistema local", OccurredAt = succeeded.CreatedAt,
+            });
+            succeeded.Audit.Add(new ExecutionAudit
+            {
+                Id = Guid.NewGuid(), ProjectId = FyrStudiosId, ExecutionRecordId = succeeded.Id,
+                EventType = "approved", FromStatus = "awaiting_approval", ToStatus = "approved",
+                Note = "Aprobación manual registrada.", Actor = "Administrador local", OccurredAt = succeeded.ApprovedAt!.Value,
+            });
+            succeeded.Audit.Add(new ExecutionAudit
+            {
+                Id = Guid.NewGuid(), ProjectId = FyrStudiosId, ExecutionRecordId = succeeded.Id,
+                EventType = "completed", FromStatus = "approved", ToStatus = "succeeded",
+                Note = "Ejecución simulada completada correctamente.", Actor = "Simulador local", OccurredAt = succeeded.CompletedAt!.Value,
+            });
+
+            var awaitingApproval = new ExecutionRecord
+            {
+                Id = FyrApprovalExecutionId, ProjectId = FyrStudiosId, ApiRatePlanId = FyrRatePlanId,
+                IdempotencyKey = "demo-seo-draft-002", Provider = "gemini", Model = "gemini-flash-demo",
+                Flow = "seo_draft", Status = "awaiting_approval", ApprovalRequired = true, ApprovedBy = string.Empty,
+                InputUnits = 32000, OutputUnits = 8500, EstimatedCostUsd = 0.00660m, EstimatedCostGtq = 0.05115m,
+                AttemptNumber = 1, ErrorCode = string.Empty, ErrorMessage = string.Empty, IsDemoData = true,
+                CreatedAt = now.AddHours(-6),
+            };
+            awaitingApproval.Audit.Add(new ExecutionAudit
+            {
+                Id = Guid.NewGuid(), ProjectId = FyrStudiosId, ExecutionRecordId = awaitingApproval.Id,
+                EventType = "planned", FromStatus = string.Empty, ToStatus = "awaiting_approval",
+                Note = "Pendiente de aprobación antes de cualquier ejecución.", Actor = "Sistema local", OccurredAt = awaitingApproval.CreatedAt,
+            });
+
+            var failed = new ExecutionRecord
+            {
+                Id = FyrFailedExecutionId, ProjectId = FyrStudiosId, ApiRatePlanId = FyrRatePlanId,
+                IdempotencyKey = "demo-content-failure-003", Provider = "gemini", Model = "gemini-flash-demo",
+                Flow = "content_analysis", Status = "failed", ApprovalRequired = false, ApprovedBy = "Política local",
+                ApprovedAt = now.AddDays(-1), InputUnits = 12000, OutputUnits = 3000,
+                EstimatedCostUsd = 0.00240m, EstimatedCostGtq = 0.01860m, AttemptNumber = 1,
+                ErrorCode = "SIMULATED_PROVIDER_ERROR", ErrorMessage = "Fallo de proveedor simulado para validar el reintento.",
+                IsDemoData = true, CreatedAt = now.AddDays(-1), StartedAt = now.AddDays(-1).AddMinutes(1),
+                CompletedAt = now.AddDays(-1).AddMinutes(2),
+            };
+            failed.Audit.Add(new ExecutionAudit
+            {
+                Id = Guid.NewGuid(), ProjectId = FyrStudiosId, ExecutionRecordId = failed.Id,
+                EventType = "failed", FromStatus = "approved", ToStatus = "failed",
+                Note = failed.ErrorMessage, Actor = "Simulador local", OccurredAt = failed.CompletedAt!.Value,
+            });
+            db.Executions.AddRange(succeeded, awaitingApproval, failed);
         }
 
         await db.SaveChangesAsync(cancellationToken);

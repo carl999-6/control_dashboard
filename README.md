@@ -2,7 +2,7 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 4 lista para revisión. Además de proyectos y marketing, el sistema conserva oportunidades SEO, briefs, borradores, calendario, transiciones e historial editorial en SQLite. Los datos semilla siguen claramente identificados como simulados.
+> Estado actual: Fase 5 lista para revisión. El sistema ya controla ejecuciones simuladas, aprobación humana, auditoría, reintentos, tarifas versionadas y presupuestos por proyecto, además de los módulos anteriores. Los datos semilla siguen claramente identificados como simulados y no se realizan llamadas pagadas ni acciones externas.
 
 ## Requisitos
 
@@ -67,6 +67,19 @@ Selecciona un proyecto y abre **SEO y contenido** para:
 - registrar mediciones agregadas y consultar todo el historial de estados.
 
 Las transiciones se validan en la API para impedir saltos de aprobación. La URL de WordPress generada por la simulación utiliza `wordpress.local` y no representa una publicación real.
+
+### Ejecuciones y costos
+
+Selecciona un proyecto y abre **Operaciones** o **Costos de API** para:
+
+- planificar intentos con clave de idempotencia, proveedor, modelo, flujo y unidades estimadas;
+- exigir aprobación humana, cancelar, simular éxito o fallo y crear reintentos trazables;
+- consultar la auditoría completa de cada ejecución;
+- versionar tarifas de entrada/salida por millón de unidades;
+- configurar límites diarios y mensuales, tipo de cambio GTQ/USD y pausa global;
+- revisar estimaciones del día y del mes calculadas en la zona horaria del proyecto.
+
+Los importes son reservas internas estimadas con la tarifa vigente al crear el intento. No son facturas ni garantizan un límite duro frente a consumos realizados fuera de este sistema. En esta fase todas las ejecuciones son locales y simuladas.
 
 Para crear una migración después de modificar el modelo:
 

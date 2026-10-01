@@ -224,12 +224,105 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/projects/{first.Id}/seo/opportunities/{opportunity.Id}")).StatusCode);
     }
 
+    [Fact]
+    public async Task Execution_planning_is_idempotent_under_concurrent_requests()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var project = await CreateProjectAsync(client, "Operaciones Alfa", "operaciones-alfa.local");
+
+        await ConfigureOperationsAsync(client, project.Id);
+        var request = new PlanExecutionRequest("same-operation-key", "gemini", "flash-test", "seo_brief", 1_000, 500, true);
+        var firstRequest = client.PostAsJsonAsync($"/api/projects/{project.Id}/operations/executions/plan", request);
+        var secondRequest = client.PostAsJsonAsync($"/api/projects/{project.Id}/operations/executions/plan", request);
+        var responses = await Task.WhenAll(firstRequest, secondRequest);
+
+        foreach (var response in responses) response.EnsureSuccessStatusCode();
+        var first = (await responses[0].Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        var second = (await responses[1].Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        var executions = await client.GetFromJsonAsync<List<ExecutionResponse>>($"/api/projects/{project.Id}/operations/executions");
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal("awaiting_approval", first.Status);
+        Assert.NotNull(executions);
+        Assert.Single(executions);
+        Assert.Equal(0.00125m, first.EstimatedCostUsd);
+    }
+
+    [Fact]
+    public async Task Execution_controls_approve_fail_retry_and_enforce_budget_pause_and_isolation()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var firstProject = await CreateProjectAsync(client, "Control Alfa", "control-alfa.local");
+        var secondProject = await CreateProjectAsync(client, "Control Beta", "control-beta.local");
+        await ConfigureOperationsAsync(client, firstProject.Id);
+
+        var planResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/operations/executions/plan",
+            new PlanExecutionRequest("approval-flow", "gemini", "flash-test", "content_draft", 1_000, 500, true));
+        planResponse.EnsureSuccessStatusCode();
+        var planned = (await planResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!;
+
+        var approveResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/operations/executions/{planned.Id}/approve",
+            new ApprovalRequest("Revisión humana completada"));
+        approveResponse.EnsureSuccessStatusCode();
+        var approved = (await approveResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        Assert.Equal("approved", approved.Status);
+        Assert.Equal("Administrador local", approved.ApprovedBy);
+
+        var completeResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/operations/executions/{planned.Id}/complete",
+            new CompleteExecutionRequest(false, "SIMULATED_FAILURE", "Fallo controlado"));
+        completeResponse.EnsureSuccessStatusCode();
+        var failed = (await completeResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        Assert.Equal("failed", failed.Status);
+        Assert.Equal("SIMULATED_FAILURE", failed.ErrorCode);
+
+        var retryResponse = await client.PostAsync($"/api/projects/{firstProject.Id}/operations/executions/{planned.Id}/retry", null);
+        retryResponse.EnsureSuccessStatusCode();
+        var retry = (await retryResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        Assert.Equal(planned.Id, retry.ParentExecutionId);
+        Assert.Equal(2, retry.AttemptNumber);
+        Assert.Equal("awaiting_approval", retry.Status);
+
+        var tinyBudgetResponse = await client.PutAsJsonAsync($"/api/projects/{firstProject.Id}/operations/budget",
+            new BudgetRequest(0.0001m, 0.0001m, 80, 7.75m, false));
+        tinyBudgetResponse.EnsureSuccessStatusCode();
+        var blockedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/operations/executions/plan",
+            new PlanExecutionRequest("budget-block", "gemini", "flash-test", "seo_analysis", 2_000, 1_000, false));
+        blockedResponse.EnsureSuccessStatusCode();
+        var blocked = (await blockedResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!;
+        Assert.Equal("blocked", blocked.Status);
+        Assert.Equal("BUDGET_BLOCKED", blocked.ErrorCode);
+
+        var pausedBudgetResponse = await client.PutAsJsonAsync($"/api/projects/{firstProject.Id}/operations/budget",
+            new BudgetRequest(1m, 10m, 80, 7.75m, true));
+        pausedBudgetResponse.EnsureSuccessStatusCode();
+        var pausedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/operations/executions/plan",
+            new PlanExecutionRequest("paused-block", "gemini", "flash-test", "seo_analysis", 100, 50, false));
+        pausedResponse.EnsureSuccessStatusCode();
+        Assert.Equal("blocked", (await pausedResponse.Content.ReadFromJsonAsync<ExecutionResponse>())!.Status);
+
+        var secondExecutions = await client.GetFromJsonAsync<List<ExecutionResponse>>($"/api/projects/{secondProject.Id}/operations/executions");
+        Assert.NotNull(secondExecutions);
+        Assert.Empty(secondExecutions);
+    }
+
     private static async Task<ProjectResponse> CreateProjectAsync(HttpClient client, string name, string domain)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new ProjectRequest(
             name, domain, "SaaS", "active", "America/Guatemala", "local", "Proyecto de prueba"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectResponse>())!;
+    }
+
+    private static async Task ConfigureOperationsAsync(HttpClient client, Guid projectId)
+    {
+        var rate = await client.PostAsJsonAsync($"/api/projects/{projectId}/operations/rates",
+            new RatePlanRequest("gemini", "flash-test", 0.5m, 1.5m, null));
+        rate.EnsureSuccessStatusCode();
+        var budget = await client.PutAsJsonAsync($"/api/projects/{projectId}/operations/budget",
+            new BudgetRequest(1m, 10m, 80, 7.75m, false));
+        budget.EnsureSuccessStatusCode();
     }
 
     private static ContentPieceRequest ContentRequest(Guid opportunityId) => new(

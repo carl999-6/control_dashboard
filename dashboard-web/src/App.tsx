@@ -37,6 +37,7 @@ import { ProjectsPage } from './ProjectsPage'
 import { SettingsPage } from './SettingsPage'
 import { MarketingPage } from './MarketingPage'
 import { SeoPage } from './SeoPage'
+import { OperationsPage } from './OperationsPage'
 
 type NavigationItem = {
   label: string
@@ -73,7 +74,7 @@ const moduleDetails: Record<string, { title: string; description: string; icon: 
   },
   '/operaciones': {
     title: 'Operaciones',
-    description: 'Estado de sitios, despliegues, backups, recursos e incidencias.',
+    description: 'Ejecuciones controladas, aprobaciones, reintentos y trazabilidad.',
     icon: Activity,
   },
   '/automatizaciones': {
@@ -275,8 +276,10 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
             <Route path="/proyectos" element={<ProjectsPage projects={projects} onChanged={loadProjects} />} />
             <Route path="/marketing" element={<MarketingPage project={selectedProject} />} />
             <Route path="/seo" element={<SeoPage project={selectedProject} />} />
+            <Route path="/operaciones" element={<OperationsPage project={selectedProject} initialTab="executions" />} />
+            <Route path="/costos" element={<OperationsPage project={selectedProject} initialTab="costs" />} />
             <Route path="/ajustes" element={<SettingsPage />} />
-            {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/marketing', '/seo', '/ajustes'].includes(path)).map(([path, details]) => (
+            {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/marketing', '/seo', '/operaciones', '/costos', '/ajustes'].includes(path)).map(([path, details]) => (
               <Route key={path} path={path} element={<ModulePlaceholder {...details} />} />
             ))}
           </Routes>

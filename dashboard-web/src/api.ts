@@ -175,6 +175,86 @@ export type SeoSummary = {
   containsDemoData: boolean
 }
 
+export type RatePlan = {
+  id: string
+  projectId: string
+  provider: string
+  model: string
+  inputUsdPerMillion: number
+  outputUsdPerMillion: number
+  effectiveFrom: string
+  isActive: boolean
+  isDemoData: boolean
+}
+
+export type RatePlanInput = Pick<RatePlan, 'provider' | 'model' | 'inputUsdPerMillion' | 'outputUsdPerMillion'> & { effectiveFrom: string | null }
+
+export type Budget = {
+  id: string
+  projectId: string
+  dailyLimitUsd: number
+  monthlyLimitUsd: number
+  warningPercent: number
+  exchangeRateGtqPerUsd: number
+  isPaused: boolean
+  updatedAt: string
+}
+
+export type BudgetInput = Omit<Budget, 'id' | 'projectId' | 'updatedAt'>
+
+export type ExecutionAudit = {
+  id: string
+  eventType: string
+  fromStatus: string
+  toStatus: string
+  note: string
+  actor: string
+  occurredAt: string
+}
+
+export type ExecutionRecord = {
+  id: string
+  projectId: string
+  apiRatePlanId: string
+  parentExecutionId: string | null
+  idempotencyKey: string
+  provider: string
+  model: string
+  flow: string
+  status: string
+  approvalRequired: boolean
+  approvedBy: string
+  approvedAt: string | null
+  inputUnits: number
+  outputUnits: number
+  estimatedCostUsd: number
+  estimatedCostGtq: number
+  attemptNumber: number
+  errorCode: string
+  errorMessage: string
+  isDemoData: boolean
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+  audit: ExecutionAudit[]
+}
+
+export type PlanExecutionInput = Pick<ExecutionRecord, 'idempotencyKey' | 'provider' | 'model' | 'flow' | 'inputUnits' | 'outputUnits' | 'approvalRequired'>
+
+export type ExecutionSummary = {
+  todayCostUsd: number
+  monthCostUsd: number
+  monthCostGtq: number
+  monthBudgetUsd: number
+  budgetUsedPercent: number
+  awaitingApproval: number
+  blocked: number
+  failed: number
+  succeeded: number
+  isPaused: boolean
+  providers: { provider: string; costUsd: number; costGtq: number; executions: number }[]
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -245,4 +325,15 @@ export const api = {
   simulateWordPressDraft: (projectId: string, itemId: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/simulate-wordpress-draft`, { method: 'POST' }),
   measureContentPiece: (projectId: string, itemId: string, impressions: number, clicks: number, notes: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/measurement`, { method: 'PUT', body: JSON.stringify({ impressions, clicks, notes, measuredAt: null }) }),
   getSeoSummary: (projectId: string) => request<SeoSummary>(`/api/projects/${projectId}/seo/summary`),
+  getRatePlans: (projectId: string) => request<RatePlan[]>(`/api/projects/${projectId}/operations/rates`),
+  createRatePlan: (projectId: string, item: RatePlanInput) => request<RatePlan>(`/api/projects/${projectId}/operations/rates`, { method: 'POST', body: JSON.stringify(item) }),
+  getBudget: (projectId: string) => request<Budget>(`/api/projects/${projectId}/operations/budget`),
+  updateBudget: (projectId: string, item: BudgetInput) => request<Budget>(`/api/projects/${projectId}/operations/budget`, { method: 'PUT', body: JSON.stringify(item) }),
+  getExecutions: (projectId: string) => request<ExecutionRecord[]>(`/api/projects/${projectId}/operations/executions`),
+  getExecutionSummary: (projectId: string) => request<ExecutionSummary>(`/api/projects/${projectId}/operations/summary`),
+  planExecution: (projectId: string, item: PlanExecutionInput) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/plan`, { method: 'POST', body: JSON.stringify(item) }),
+  approveExecution: (projectId: string, executionId: string, note: string) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/approve`, { method: 'POST', body: JSON.stringify({ note }) }),
+  completeExecution: (projectId: string, executionId: string, succeeded: boolean) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/complete`, { method: 'POST', body: JSON.stringify({ succeeded, errorCode: succeeded ? null : 'SIMULATED_PROVIDER_ERROR', errorMessage: succeeded ? null : 'Fallo simulado para probar el control de reintentos.' }) }),
+  retryExecution: (projectId: string, executionId: string) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/retry`, { method: 'POST' }),
+  cancelExecution: (projectId: string, executionId: string) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/cancel`, { method: 'POST' }),
 }

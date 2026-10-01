@@ -21,4 +21,8 @@ public sealed class Project
     public ICollection<SeoOpportunity> SeoOpportunities { get; set; } = [];
     public ICollection<ContentPiece> ContentPieces { get; set; } = [];
     public ICollection<EditorialHistory> EditorialHistory { get; set; } = [];
+    public ICollection<ApiRatePlan> ApiRatePlans { get; set; } = [];
+    public ProjectBudget? Budget { get; set; }
+    public ICollection<ExecutionRecord> Executions { get; set; } = [];
+    public ICollection<ExecutionAudit> ExecutionAudit { get; set; } = [];
 }
