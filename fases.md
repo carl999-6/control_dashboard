@@ -60,7 +60,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: pantallas, endpoints y pruebas del flujo de atribución.
 - Criterios de aceptación: una publicación puede asociarse a campaña y métricas sin afirmar causalidad o identidad no disponible.
 - Cómo se probará: pruebas de validación, importación y recorrido completo.
-- Estado: lista para revisión.
+- Estado: aprobada.
 
 ### Fase 4 — SEO, contenido y calendario editorial
 
@@ -70,7 +70,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: flujo editorial manual completo y simulación de envío como borrador.
 - Criterios de aceptación: cada pieza conserva hipótesis, línea base, responsable, estado e historial.
 - Cómo se probará: pruebas de transiciones y recorrido editorial.
-- Estado: pendiente.
+- Estado: lista para revisión.
 
 ### Fase 5 — Ejecuciones, aprobaciones, consumo y presupuestos
 

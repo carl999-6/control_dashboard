@@ -250,6 +250,7 @@ settings.MapPut("/", async (PreferenceRequest request, DashboardDbContext db, Ca
 });
 
 app.MapMarketingEndpoints();
+app.MapSeoEndpoints();
 
 app.Run();
 

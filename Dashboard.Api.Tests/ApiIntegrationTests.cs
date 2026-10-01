@@ -165,6 +165,65 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, deleteCampaign.StatusCode);
     }
 
+    [Fact]
+    public async Task Seo_editorial_flow_enforces_transitions_history_and_project_isolation()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var first = await CreateProjectAsync(client, "SEO Alfa", "seo-alfa.local");
+        var second = await CreateProjectAsync(client, "SEO Beta", "seo-beta.local");
+
+        var opportunityResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/seo/opportunities", new SeoOpportunityRequest(
+            "consulta objetivo", "/landing", "100 impresiones y CTR bajo", "Una guía puede responder mejor", "detected", 100, 2));
+        opportunityResponse.EnsureSuccessStatusCode();
+        var opportunity = (await opportunityResponse.Content.ReadFromJsonAsync<SeoOpportunityResponse>())!;
+
+        var crossProjectContent = await client.PostAsJsonAsync($"/api/projects/{second.Id}/seo/content", ContentRequest(opportunity.Id));
+        Assert.Equal(HttpStatusCode.BadRequest, crossProjectContent.StatusCode);
+
+        var contentResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/seo/content", ContentRequest(opportunity.Id));
+        contentResponse.EnsureSuccessStatusCode();
+        var content = (await contentResponse.Content.ReadFromJsonAsync<ContentPieceResponse>())!;
+        Assert.Equal("brief", content.Status);
+        Assert.Single(content.History);
+
+        var invalidTransition = await client.PostAsJsonAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/transition",
+            new EditorialTransitionRequest("approved", null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, invalidTransition.StatusCode);
+
+        foreach (var target in new[] { "draft", "pending_review", "approved" })
+        {
+            var response = await client.PostAsJsonAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/transition",
+                new EditorialTransitionRequest(target, $"Paso a {target}", null));
+            response.EnsureSuccessStatusCode();
+        }
+        var scheduledFor = DateTimeOffset.UtcNow.AddDays(4);
+        var schedule = await client.PostAsJsonAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/transition",
+            new EditorialTransitionRequest("scheduled", "Fecha acordada", scheduledFor));
+        schedule.EnsureSuccessStatusCode();
+
+        var simulation = await client.PostAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/simulate-wordpress-draft", null);
+        simulation.EnsureSuccessStatusCode();
+        var simulated = (await simulation.Content.ReadFromJsonAsync<ContentPieceResponse>())!;
+        Assert.Equal("sent_draft", simulated.Status);
+        Assert.Contains("wordpress.local", simulated.SimulatedWordPressUrl);
+
+        var measurement = await client.PutAsJsonAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/measurement",
+            new ContentMeasurementRequest(320, 14, "Mejora observada, sin afirmar causalidad.", null));
+        measurement.EnsureSuccessStatusCode();
+        var measured = (await measurement.Content.ReadFromJsonAsync<ContentPieceResponse>())!;
+        Assert.Equal("measured", measured.Status);
+        Assert.Equal(320, measured.ResultImpressions);
+        Assert.Equal(7, measured.History.Count);
+
+        var secondContent = await client.GetFromJsonAsync<List<ContentPieceResponse>>($"/api/projects/{second.Id}/seo/content");
+        Assert.NotNull(secondContent);
+        Assert.Empty(secondContent);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/projects/{first.Id}/seo/content/{content.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/projects/{first.Id}/seo/opportunities/{opportunity.Id}")).StatusCode);
+    }
+
     private static async Task<ProjectResponse> CreateProjectAsync(HttpClient client, string name, string domain)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new ProjectRequest(
@@ -172,6 +231,12 @@ public sealed class ApiIntegrationTests : IDisposable
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectResponse>())!;
     }
+
+    private static ContentPieceRequest ContentRequest(Guid opportunityId) => new(
+        opportunityId, "Guía de prueba", "new", "consulta objetivo", "informational",
+        "La guía puede responder la consulta", "100 impresiones y 2 clics", "Mejorar claridad y CTR",
+        "Carlos", "Estructura y preguntas clave", "# Borrador\n\nContenido de prueba.",
+        "Guía de prueba", "Descripción de prueba", null);
 
     public void Dispose()
     {

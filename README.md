@@ -2,7 +2,7 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 3 lista para revisión. Proyectos, objetivos, ajustes, campañas, publicaciones y eventos agregados de marketing se guardan localmente en SQLite. Los datos semilla siguen claramente identificados como simulados.
+> Estado actual: Fase 4 lista para revisión. Además de proyectos y marketing, el sistema conserva oportunidades SEO, briefs, borradores, calendario, transiciones e historial editorial en SQLite. Los datos semilla siguen claramente identificados como simulados.
 
 ## Requisitos
 
@@ -54,6 +54,19 @@ Selecciona un proyecto y abre **Marketing** para:
 - validar e importar CSV o JSON con conteos agregados.
 
 El importador acepta las etapas `visit`, `interest`, `contact` y `quote`. Sus campos principales son `stage`, `source`, `medium`, `count`, `landingPath` y `occurredAt`; opcionalmente admite `campaignId` y `socialPostId` del mismo proyecto. No se deben importar nombres, correos, IP ni identificadores personales.
+
+### SEO y contenido
+
+Selecciona un proyecto y abre **SEO y contenido** para:
+
+- registrar oportunidades con evidencia, hipótesis y línea base;
+- convertirlas en briefs y borradores en Markdown;
+- revisar el flujo `brief → borrador → revisión → aprobación → programación`;
+- consultar fechas en el calendario editorial;
+- simular el envío como borrador de WordPress sin realizar conexiones externas;
+- registrar mediciones agregadas y consultar todo el historial de estados.
+
+Las transiciones se validan en la API para impedir saltos de aprobación. La URL de WordPress generada por la simulación utiliza `wordpress.local` y no representa una publicación real.
 
 Para crear una migración después de modificar el modelo:
 

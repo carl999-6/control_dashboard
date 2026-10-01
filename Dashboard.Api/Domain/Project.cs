@@ -18,4 +18,7 @@ public sealed class Project
     public ICollection<Campaign> Campaigns { get; set; } = [];
     public ICollection<SocialPost> SocialPosts { get; set; } = [];
     public ICollection<MarketingEvent> MarketingEvents { get; set; } = [];
+    public ICollection<SeoOpportunity> SeoOpportunities { get; set; } = [];
+    public ICollection<ContentPiece> ContentPieces { get; set; } = [];
+    public ICollection<EditorialHistory> EditorialHistory { get; set; } = [];
 }

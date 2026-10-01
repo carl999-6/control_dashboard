@@ -11,6 +11,9 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<SocialPost> SocialPosts => Set<SocialPost>();
     public DbSet<MarketingEvent> MarketingEvents => Set<MarketingEvent>();
+    public DbSet<SeoOpportunity> SeoOpportunities => Set<SeoOpportunity>();
+    public DbSet<ContentPiece> ContentPieces => Set<ContentPiece>();
+    public DbSet<EditorialHistory> EditorialHistory => Set<EditorialHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,5 +85,54 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
             .HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.SetNull);
         marketingEvent.HasOne(item => item.SocialPost).WithMany(item => item.Events)
             .HasForeignKey(item => item.SocialPostId).OnDelete(DeleteBehavior.SetNull);
+
+        var opportunity = modelBuilder.Entity<SeoOpportunity>();
+        opportunity.HasKey(item => item.Id);
+        opportunity.HasIndex(item => new { item.ProjectId, item.Status });
+        opportunity.Property(item => item.Query).HasMaxLength(220);
+        opportunity.Property(item => item.TargetPage).HasMaxLength(500);
+        opportunity.Property(item => item.Evidence).HasMaxLength(1000);
+        opportunity.Property(item => item.Hypothesis).HasMaxLength(1000);
+        opportunity.Property(item => item.Status).HasMaxLength(30);
+        opportunity.Property(item => item.DataSource).HasMaxLength(30);
+        opportunity.HasOne(item => item.Project).WithMany(item => item.SeoOpportunities)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+        var contentPiece = modelBuilder.Entity<ContentPiece>();
+        contentPiece.HasKey(item => item.Id);
+        contentPiece.HasIndex(item => new { item.ProjectId, item.Status });
+        contentPiece.HasIndex(item => new { item.ProjectId, item.ScheduledFor });
+        contentPiece.Property(item => item.Title).HasMaxLength(220);
+        contentPiece.Property(item => item.Slug).HasMaxLength(220);
+        contentPiece.Property(item => item.ContentType).HasMaxLength(30);
+        contentPiece.Property(item => item.PrimaryKeyword).HasMaxLength(220);
+        contentPiece.Property(item => item.SearchIntent).HasMaxLength(80);
+        contentPiece.Property(item => item.Hypothesis).HasMaxLength(1200);
+        contentPiece.Property(item => item.BaselineSummary).HasMaxLength(1200);
+        contentPiece.Property(item => item.Objective).HasMaxLength(800);
+        contentPiece.Property(item => item.Owner).HasMaxLength(120);
+        contentPiece.Property(item => item.Brief).HasMaxLength(10000);
+        contentPiece.Property(item => item.DraftMarkdown).HasMaxLength(60000);
+        contentPiece.Property(item => item.MetaTitle).HasMaxLength(180);
+        contentPiece.Property(item => item.MetaDescription).HasMaxLength(320);
+        contentPiece.Property(item => item.Status).HasMaxLength(30);
+        contentPiece.Property(item => item.ResultNotes).HasMaxLength(1500);
+        contentPiece.Property(item => item.SimulatedWordPressUrl).HasMaxLength(1000);
+        contentPiece.HasOne(item => item.Project).WithMany(item => item.ContentPieces)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        contentPiece.HasOne(item => item.SeoOpportunity).WithMany(item => item.ContentPieces)
+            .HasForeignKey(item => item.SeoOpportunityId).OnDelete(DeleteBehavior.SetNull);
+
+        var history = modelBuilder.Entity<EditorialHistory>();
+        history.HasKey(item => item.Id);
+        history.HasIndex(item => new { item.ProjectId, item.ContentPieceId, item.ChangedAt });
+        history.Property(item => item.FromStatus).HasMaxLength(30);
+        history.Property(item => item.ToStatus).HasMaxLength(30);
+        history.Property(item => item.Note).HasMaxLength(1000);
+        history.Property(item => item.Actor).HasMaxLength(120);
+        history.HasOne(item => item.Project).WithMany(item => item.EditorialHistory)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        history.HasOne(item => item.ContentPiece).WithMany(item => item.History)
+            .HasForeignKey(item => item.ContentPieceId).OnDelete(DeleteBehavior.Cascade);
     }
 }

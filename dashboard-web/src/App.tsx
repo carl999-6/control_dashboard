@@ -36,6 +36,7 @@ import { LoginPage } from './LoginPage'
 import { ProjectsPage } from './ProjectsPage'
 import { SettingsPage } from './SettingsPage'
 import { MarketingPage } from './MarketingPage'
+import { SeoPage } from './SeoPage'
 
 type NavigationItem = {
   label: string
@@ -273,8 +274,9 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
             <Route path="/" element={<Overview project={selectedProject} projects={projects} />} />
             <Route path="/proyectos" element={<ProjectsPage projects={projects} onChanged={loadProjects} />} />
             <Route path="/marketing" element={<MarketingPage project={selectedProject} />} />
+            <Route path="/seo" element={<SeoPage project={selectedProject} />} />
             <Route path="/ajustes" element={<SettingsPage />} />
-            {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/marketing', '/ajustes'].includes(path)).map(([path, details]) => (
+            {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/marketing', '/seo', '/ajustes'].includes(path)).map(([path, details]) => (
               <Route key={path} path={path} element={<ModulePlaceholder {...details} />} />
             ))}
           </Routes>

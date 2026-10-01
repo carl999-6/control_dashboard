@@ -107,6 +107,74 @@ export type MarketingSummary = {
   containsDemoData: boolean
 }
 
+export type SeoOpportunity = {
+  id: string
+  projectId: string
+  query: string
+  targetPage: string
+  evidence: string
+  hypothesis: string
+  status: string
+  dataSource: string
+  baselineImpressions: number
+  baselineClicks: number
+  isDemoData: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type SeoOpportunityInput = Pick<SeoOpportunity, 'query' | 'targetPage' | 'evidence' | 'hypothesis' | 'status' | 'baselineImpressions' | 'baselineClicks'>
+
+export type EditorialHistory = {
+  id: string
+  fromStatus: string
+  toStatus: string
+  note: string
+  actor: string
+  changedAt: string
+}
+
+export type ContentPiece = {
+  id: string
+  projectId: string
+  seoOpportunityId: string | null
+  title: string
+  slug: string
+  contentType: string
+  primaryKeyword: string
+  searchIntent: string
+  hypothesis: string
+  baselineSummary: string
+  objective: string
+  owner: string
+  brief: string
+  draftMarkdown: string
+  metaTitle: string
+  metaDescription: string
+  status: string
+  scheduledFor: string | null
+  measuredAt: string | null
+  resultImpressions: number | null
+  resultClicks: number | null
+  resultNotes: string
+  simulatedWordPressUrl: string
+  isDemoData: boolean
+  createdAt: string
+  updatedAt: string
+  history: EditorialHistory[]
+}
+
+export type ContentPieceInput = Pick<ContentPiece, 'seoOpportunityId' | 'title' | 'contentType' | 'primaryKeyword' | 'searchIntent' | 'hypothesis' | 'baselineSummary' | 'objective' | 'owner' | 'brief' | 'draftMarkdown' | 'metaTitle' | 'metaDescription' | 'scheduledFor'>
+
+export type SeoSummary = {
+  opportunities: number
+  activePieces: number
+  pendingReview: number
+  scheduled: number
+  measured: number
+  containsDemoData: boolean
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -165,4 +233,16 @@ export const api = {
   deleteSocialPost: (projectId: string, postId: string) => request<void>(`/api/projects/${projectId}/marketing/posts/${postId}`, { method: 'DELETE' }),
   getMarketingSummary: (projectId: string) => request<MarketingSummary>(`/api/projects/${projectId}/marketing/summary`),
   importMarketingEvents: (projectId: string, events: MarketingEventInput[]) => request<{ imported: number; totalCount: number }>(`/api/projects/${projectId}/marketing/events/import`, { method: 'POST', body: JSON.stringify({ events }) }),
+  getSeoOpportunities: (projectId: string) => request<SeoOpportunity[]>(`/api/projects/${projectId}/seo/opportunities`),
+  createSeoOpportunity: (projectId: string, item: SeoOpportunityInput) => request<SeoOpportunity>(`/api/projects/${projectId}/seo/opportunities`, { method: 'POST', body: JSON.stringify(item) }),
+  updateSeoOpportunity: (projectId: string, itemId: string, item: SeoOpportunityInput) => request<SeoOpportunity>(`/api/projects/${projectId}/seo/opportunities/${itemId}`, { method: 'PUT', body: JSON.stringify(item) }),
+  deleteSeoOpportunity: (projectId: string, itemId: string) => request<void>(`/api/projects/${projectId}/seo/opportunities/${itemId}`, { method: 'DELETE' }),
+  getContentPieces: (projectId: string) => request<ContentPiece[]>(`/api/projects/${projectId}/seo/content`),
+  createContentPiece: (projectId: string, item: ContentPieceInput) => request<ContentPiece>(`/api/projects/${projectId}/seo/content`, { method: 'POST', body: JSON.stringify(item) }),
+  updateContentPiece: (projectId: string, itemId: string, item: ContentPieceInput) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}`, { method: 'PUT', body: JSON.stringify(item) }),
+  deleteContentPiece: (projectId: string, itemId: string) => request<void>(`/api/projects/${projectId}/seo/content/${itemId}`, { method: 'DELETE' }),
+  transitionContentPiece: (projectId: string, itemId: string, targetStatus: string, note: string, scheduledFor: string | null = null) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/transition`, { method: 'POST', body: JSON.stringify({ targetStatus, note, scheduledFor }) }),
+  simulateWordPressDraft: (projectId: string, itemId: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/simulate-wordpress-draft`, { method: 'POST' }),
+  measureContentPiece: (projectId: string, itemId: string, impressions: number, clicks: number, notes: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/measurement`, { method: 'PUT', body: JSON.stringify({ impressions, clicks, notes, measuredAt: null }) }),
+  getSeoSummary: (projectId: string) => request<SeoSummary>(`/api/projects/${projectId}/seo/summary`),
 }
