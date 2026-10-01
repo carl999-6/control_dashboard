@@ -18,6 +18,8 @@ appsettings.Development.json
 *.db
 *.db-shm
 *.db-wal
+Dashboard.Api/Data/*.db*
+Dashboard.Api/Data/keys/
 
 # Editors and operating system
 .vs/

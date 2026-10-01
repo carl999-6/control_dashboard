@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import {
   Activity,
@@ -16,6 +16,7 @@ import {
   GitBranch,
   Globe2,
   LayoutDashboard,
+  LogOut,
   Menu,
   MessageSquareText,
   MoreHorizontal,
@@ -29,7 +30,11 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
+import { api, type Project, type Session } from './api'
 import { formatQuetzales, formatRelativeTime } from './formatters'
+import { LoginPage } from './LoginPage'
+import { ProjectsPage } from './ProjectsPage'
+import { SettingsPage } from './SettingsPage'
 
 type NavigationItem = {
   label: string
@@ -123,13 +128,59 @@ const activityItems = [
 ]
 
 function App() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [connectionError, setConnectionError] = useState('')
+
+  const loadSession = useCallback(async () => {
+    setConnectionError('')
+    try {
+      setSession(await api.getSession())
+    } catch {
+      setConnectionError('No se pudo conectar con la API local. Comprueba que ASP.NET Core esté en ejecución.')
+    }
+  }, [])
+
+  useEffect(() => { void loadSession() }, [loadSession])
+
+  if (connectionError) {
+    return <main className="boot-screen"><span className="boot-logo">!</span><h1>La API local no responde</h1><p>{connectionError}</p><button className="primary-button" onClick={loadSession}>Reintentar</button></main>
+  }
+  if (!session) return <main className="boot-screen"><span className="boot-loader" /><p>Preparando el centro de control…</p></main>
+  if (!session.authenticated) return <LoginPage onAuthenticated={loadSession} />
+
+  return <DashboardShell onLoggedOut={() => setSession({ authenticated: false, displayName: null })} />
+}
+
+function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [project, setProject] = useState('Todos los proyectos')
+  const [selectedProjectId, setSelectedProjectId] = useState('all')
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectsError, setProjectsError] = useState('')
   const location = useLocation()
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const loaded = await api.getProjects()
+      setProjects(loaded)
+      setProjectsError('')
+      if (selectedProjectId !== 'all' && !loaded.some((project) => project.id === selectedProjectId)) setSelectedProjectId('all')
+    } catch (reason) {
+      setProjectsError(reason instanceof Error ? reason.message : 'No fue posible cargar los proyectos.')
+    }
+  }, [selectedProjectId])
+
+  useEffect(() => { void loadProjects() }, [loadProjects])
 
   useEffect(() => {
     setSidebarOpen(false)
   }, [location.pathname])
+
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
+
+  async function logout() {
+    await api.logout()
+    onLoggedOut()
+  }
 
   return (
     <div className="app-shell">
@@ -152,10 +203,10 @@ function App() {
         <div className="project-picker">
           <span className="project-picker__label">ESPACIO DE TRABAJO</span>
           <label>
-            <span className="project-avatar">{project === 'Todos los proyectos' ? 'CP' : 'FS'}</span>
-            <select value={project} onChange={(event) => setProject(event.target.value)} aria-label="Proyecto activo">
-              <option>Todos los proyectos</option>
-              <option>FyrStudios</option>
+            <span className="project-avatar">{selectedProject ? selectedProject.name.slice(0, 2).toUpperCase() : 'CP'}</span>
+            <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} aria-label="Proyecto activo">
+              <option value="all">Todos los proyectos</option>
+              {projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}
             </select>
             <ChevronDown size={15} />
           </label>
@@ -183,7 +234,7 @@ function App() {
               <strong>Administrador</strong>
               <small>Sesión local</small>
             </span>
-            <MoreHorizontal size={17} />
+            <button className="logout-button" onClick={logout} aria-label="Cerrar sesión"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
@@ -216,9 +267,12 @@ function App() {
         </header>
 
         <main>
+          {projectsError && <div className="global-error" role="alert">{projectsError}</div>}
           <Routes>
-            <Route path="/" element={<Overview project={project} />} />
-            {Object.entries(moduleDetails).map(([path, details]) => (
+            <Route path="/" element={<Overview project={selectedProject} projects={projects} />} />
+            <Route path="/proyectos" element={<ProjectsPage projects={projects} onChanged={loadProjects} />} />
+            <Route path="/ajustes" element={<SettingsPage />} />
+            {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/ajustes'].includes(path)).map(([path, details]) => (
               <Route key={path} path={path} element={<ModulePlaceholder {...details} />} />
             ))}
           </Routes>
@@ -228,8 +282,8 @@ function App() {
   )
 }
 
-function Overview({ project }: { project: string }) {
-  const isGlobal = project === 'Todos los proyectos'
+function Overview({ project, projects }: { project: Project | null; projects: Project[] }) {
+  const isGlobal = project === null
   const dateLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('es-GT', {
@@ -245,7 +299,7 @@ function Overview({ project }: { project: string }) {
       <section className="page-heading">
         <div>
           <div className="eyebrow"><span /> {dateLabel}</div>
-          <h1>{isGlobal ? 'Todo bajo control.' : 'FyrStudios, en resumen.'}</h1>
+          <h1>{isGlobal ? 'Todo bajo control.' : `${project.name}, en resumen.`}</h1>
           <p>{isGlobal ? 'Una vista clara de lo que necesita atención en tus proyectos.' : 'Rendimiento, actividad y prioridades del proyecto.'}</p>
         </div>
         <div className="heading-actions">
@@ -301,9 +355,19 @@ function Overview({ project }: { project: string }) {
             <div className="project-row project-row--head" role="row">
               <span>Proyecto</span><span>Estado</span><span>Visitas</span><span>Conversión</span><span>Salud</span>
             </div>
-            <ProjectRow initials="FS" name="FyrStudios" domain="fyrstudios.com" status="Activo" visits="2,184" conversion="2.7%" health={92} />
-            <ProjectRow initials="SF" name="SaaS futuro" domain="En planificación" status="Diseño" visits="—" conversion="—" health={68} muted />
-            <ProjectRow initials="CD" name="Cliente demo" domain="Datos de ejemplo" status="Pausado" visits="657" conversion="1.9%" health={74} muted />
+            {projects.map((item, index) => (
+              <ProjectRow
+                key={item.id}
+                initials={item.name.slice(0, 2).toUpperCase()}
+                name={item.name}
+                domain={item.domain}
+                status={{ active: 'Activo', planning: 'Diseño', paused: 'Pausado' }[item.status] ?? item.status}
+                visits={['2,184', '—', '657'][index] ?? '—'}
+                conversion={['2.7%', '—', '1.9%'][index] ?? '—'}
+                health={[92, 68, 74][index] ?? 70}
+                muted={item.status !== 'active'}
+              />
+            ))}
           </div>
         </div>
 

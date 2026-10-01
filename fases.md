@@ -40,17 +40,17 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
   - `npm test` y `npm run build` en el frontend.
   - `dotnet build` y solicitud HTTP al endpoint de salud.
   - Revisión visual en navegador en escritorio y móvil.
-- Estado: lista para revisión.
+- Estado: aprobada.
 
 ### Fase 2 — Modelo multi-proyecto, acceso local y configuración
 
 - Objetivo: persistir proyectos y preferencias con aislamiento por `project_id`.
-- Alcance incluido: SQLite, migraciones, entidades base, datos semilla, acceso de administrador local, CRUD de proyectos y ajustes.
+- Alcance incluido: SQLite, migraciones, entidades base, datos semilla, acceso de administrador local, CRUD de proyectos y objetivos, y ajustes generales.
 - Fuera de alcance por ahora: integraciones reales y acceso de clientes.
 - Entregables: esquema de datos, API de proyectos, formularios y pruebas de aislamiento.
 - Criterios de aceptación: los proyectos se crean, editan y consultan sin mezclar sus datos; el acceso local protege la aplicación.
 - Cómo se probará: pruebas de API, migraciones desde cero y flujo manual en navegador.
-- Estado: pendiente.
+- Estado: lista para revisión.
 
 ### Fase 3 — Marketing, campañas y analítica simulada
 
