@@ -21,6 +21,10 @@ public static class SeedData
     public static readonly Guid FyrSucceededExecutionId = Guid.Parse("11111111-9101-4111-8111-111111111111");
     public static readonly Guid FyrApprovalExecutionId = Guid.Parse("11111111-9102-4111-8111-111111111111");
     public static readonly Guid FyrFailedExecutionId = Guid.Parse("11111111-9103-4111-8111-111111111111");
+    public static readonly Guid FyrNotificationPolicyId = Guid.Parse("11111111-9201-4111-8111-111111111111");
+    public static readonly Guid FyrSentNotificationId = Guid.Parse("11111111-9202-4111-8111-111111111111");
+    public static readonly Guid FyrFailedNotificationId = Guid.Parse("11111111-9203-4111-8111-111111111111");
+    public static readonly Guid FyrGroupedNotificationId = Guid.Parse("11111111-9204-4111-8111-111111111111");
 
     public static async Task InitializeAsync(DashboardDbContext db, CancellationToken cancellationToken = default)
     {
@@ -304,6 +308,44 @@ public static class SeedData
                 Note = failed.ErrorMessage, Actor = "Simulador local", OccurredAt = failed.CompletedAt!.Value,
             });
             db.Executions.AddRange(succeeded, awaitingApproval, failed);
+        }
+
+        if (!await db.NotificationPolicies.AnyAsync(item => item.ProjectId == FyrStudiosId, cancellationToken))
+        {
+            var now = DateTimeOffset.UtcNow;
+            db.NotificationPolicies.Add(new NotificationPolicy
+            {
+                Id = FyrNotificationPolicyId, ProjectId = FyrStudiosId, IsEnabled = true, DeliveryMode = "simulated",
+                MinimumSeverity = "info", GroupWindowMinutes = 30, QuietHoursStart = 22, QuietHoursEnd = 7, UpdatedAt = now,
+            });
+            db.Notifications.AddRange(
+                new NotificationRecord
+                {
+                    Id = FyrSentNotificationId, ProjectId = FyrStudiosId, NotificationPolicyId = FyrNotificationPolicyId,
+                    DeduplicationKey = "demo-editorial-ready", Category = "editorial", Severity = "info",
+                    Title = "Borrador SEO listo para revisión", Message = "La guía de identidad visual está disponible para aprobación editorial.",
+                    Status = "sent", GroupCount = 1, AttemptCount = 1, SimulateFailure = false, ErrorMessage = string.Empty,
+                    IsDemoData = true, CreatedAt = now.AddMinutes(-45), UpdatedAt = now.AddMinutes(-45),
+                    LastAttemptAt = now.AddMinutes(-45), DeliveredAt = now.AddMinutes(-45),
+                },
+                new NotificationRecord
+                {
+                    Id = FyrFailedNotificationId, ProjectId = FyrStudiosId, NotificationPolicyId = FyrNotificationPolicyId,
+                    DeduplicationKey = "demo-api-failure", Category = "operations", Severity = "critical",
+                    Title = "Fallo de entrega simulado", Message = "Se registró un fallo de entrega para comprobar la recuperación manual.",
+                    Status = "failed", GroupCount = 1, AttemptCount = 1, SimulateFailure = true,
+                    ErrorMessage = "Fallo simulado de Telegram; no se realizó ninguna llamada externa.", IsDemoData = true,
+                    CreatedAt = now.AddMinutes(-30), UpdatedAt = now.AddMinutes(-30), LastAttemptAt = now.AddMinutes(-30),
+                },
+                new NotificationRecord
+                {
+                    Id = FyrGroupedNotificationId, ProjectId = FyrStudiosId, NotificationPolicyId = FyrNotificationPolicyId,
+                    DeduplicationKey = "demo-budget-warning", Category = "budget", Severity = "warning",
+                    Title = "Aviso de presupuesto agrupado", Message = "Tres eventos similares fueron agrupados para evitar ruido.",
+                    Status = "grouped", GroupCount = 3, AttemptCount = 1, SimulateFailure = false, ErrorMessage = string.Empty,
+                    IsDemoData = true, CreatedAt = now.AddMinutes(-15), UpdatedAt = now.AddMinutes(-2),
+                    LastAttemptAt = now.AddMinutes(-15), DeliveredAt = now.AddMinutes(-15),
+                });
         }
 
         await db.SaveChangesAsync(cancellationToken);

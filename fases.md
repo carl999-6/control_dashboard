@@ -90,7 +90,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: configuración, historial y prueba opcional autorizada.
 - Criterios de aceptación: las alertas respetan preferencias y los fallos quedan registrados sin duplicarse.
 - Cómo se probará: bot simulado y, solo con autorización, bot real de prueba.
-- Estado: pendiente.
+- Estado: lista para revisión.
 
 ### Fase 7 — Conectores reales seguros, uno por vez
 

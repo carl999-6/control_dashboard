@@ -255,6 +255,51 @@ export type ExecutionSummary = {
   providers: { provider: string; costUsd: number; costGtq: number; executions: number }[]
 }
 
+export type NotificationPolicy = {
+  id: string
+  projectId: string
+  isEnabled: boolean
+  deliveryMode: string
+  minimumSeverity: string
+  groupWindowMinutes: number
+  quietHoursStart: number
+  quietHoursEnd: number
+  updatedAt: string
+}
+
+export type NotificationPolicyInput = Omit<NotificationPolicy, 'id' | 'projectId' | 'deliveryMode' | 'updatedAt'>
+
+export type NotificationRecord = {
+  id: string
+  projectId: string
+  deduplicationKey: string
+  category: string
+  severity: string
+  title: string
+  message: string
+  status: string
+  groupCount: number
+  attemptCount: number
+  simulateFailure: boolean
+  errorMessage: string
+  isDemoData: boolean
+  createdAt: string
+  updatedAt: string
+  lastAttemptAt: string | null
+  deliveredAt: string | null
+}
+
+export type DispatchNotificationInput = Pick<NotificationRecord, 'deduplicationKey' | 'category' | 'severity' | 'title' | 'message' | 'simulateFailure'>
+
+export type NotificationSummary = {
+  delivered: number
+  pending: number
+  failed: number
+  grouped: number
+  suppressed: number
+  totalOccurrences: number
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -336,4 +381,11 @@ export const api = {
   completeExecution: (projectId: string, executionId: string, succeeded: boolean) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/complete`, { method: 'POST', body: JSON.stringify({ succeeded, errorCode: succeeded ? null : 'SIMULATED_PROVIDER_ERROR', errorMessage: succeeded ? null : 'Fallo simulado para probar el control de reintentos.' }) }),
   retryExecution: (projectId: string, executionId: string) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/retry`, { method: 'POST' }),
   cancelExecution: (projectId: string, executionId: string) => request<ExecutionRecord>(`/api/projects/${projectId}/operations/executions/${executionId}/cancel`, { method: 'POST' }),
+  getNotificationPolicy: (projectId: string) => request<NotificationPolicy>(`/api/projects/${projectId}/notifications/policy`),
+  updateNotificationPolicy: (projectId: string, item: NotificationPolicyInput) => request<NotificationPolicy>(`/api/projects/${projectId}/notifications/policy`, { method: 'PUT', body: JSON.stringify(item) }),
+  getNotifications: (projectId: string) => request<NotificationRecord[]>(`/api/projects/${projectId}/notifications`),
+  getNotificationSummary: (projectId: string) => request<NotificationSummary>(`/api/projects/${projectId}/notifications/summary`),
+  dispatchNotification: (projectId: string, item: DispatchNotificationInput) => request<NotificationRecord>(`/api/projects/${projectId}/notifications/dispatch`, { method: 'POST', body: JSON.stringify(item) }),
+  retryNotification: (projectId: string, notificationId: string) => request<NotificationRecord>(`/api/projects/${projectId}/notifications/${notificationId}/retry`, { method: 'POST' }),
+  processQueuedNotifications: (projectId: string) => request<NotificationRecord[]>(`/api/projects/${projectId}/notifications/process-queued`, { method: 'POST' }),
 }

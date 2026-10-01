@@ -25,4 +25,6 @@ public sealed class Project
     public ProjectBudget? Budget { get; set; }
     public ICollection<ExecutionRecord> Executions { get; set; } = [];
     public ICollection<ExecutionAudit> ExecutionAudit { get; set; } = [];
+    public NotificationPolicy? NotificationPolicy { get; set; }
+    public ICollection<NotificationRecord> Notifications { get; set; } = [];
 }

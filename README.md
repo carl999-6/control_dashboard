@@ -2,7 +2,7 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 5 lista para revisión. El sistema ya controla ejecuciones simuladas, aprobación humana, auditoría, reintentos, tarifas versionadas y presupuestos por proyecto, además de los módulos anteriores. Los datos semilla siguen claramente identificados como simulados y no se realizan llamadas pagadas ni acciones externas.
+> Estado actual: Fase 6 lista para revisión. El sistema ya controla ejecuciones simuladas, presupuestos y alertas locales configurables con agrupación y recuperación de fallos. Los datos semilla siguen claramente identificados como simulados y no se realizan llamadas pagadas ni acciones externas.
 
 ## Requisitos
 
@@ -80,6 +80,17 @@ Selecciona un proyecto y abre **Operaciones** o **Costos de API** para:
 - revisar estimaciones del día y del mes calculadas en la zona horaria del proyecto.
 
 Los importes son reservas internas estimadas con la tarifa vigente al crear el intento. No son facturas ni garantizan un límite duro frente a consumos realizados fuera de este sistema. En esta fase todas las ejecuciones son locales y simuladas.
+
+### Automatizaciones y alertas
+
+Selecciona un proyecto y abre **Automatizaciones** para:
+
+- configurar el umbral de severidad, la ventana de agrupación y el horario silencioso local;
+- simular una alerta o un fallo de entrega sin conectar Telegram;
+- revisar qué evento fue entregado, agrupado, encolado, omitido o falló;
+- recuperar manualmente un fallo y procesar la cola local.
+
+El canal actual es un adaptador `simulated`: no acepta, muestra ni guarda token de bot, chat ID ni otra credencial. “Entregada” significa que la prueba local terminó correctamente; no confirma ningún envío a Telegram. Un bot real requiere autorización explícita y se incorporará mediante configuración segura en una fase posterior.
 
 Para crear una migración después de modificar el modelo:
 

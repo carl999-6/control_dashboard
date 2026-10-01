@@ -76,6 +76,7 @@ if (string.IsNullOrWhiteSpace(configuredPassword) && !builder.Environment.IsDeve
 }
 
 builder.Services.AddSingleton(new LocalAdminPasswordVerifier(configuredPassword ?? "control-local-2026"));
+builder.Services.AddSingleton<INotificationChannel, SimulatedTelegramChannel>();
 
 var app = builder.Build();
 
@@ -252,6 +253,7 @@ settings.MapPut("/", async (PreferenceRequest request, DashboardDbContext db, Ca
 app.MapMarketingEndpoints();
 app.MapSeoEndpoints();
 app.MapExecutionEndpoints();
+app.MapNotificationEndpoints();
 
 app.Run();
 

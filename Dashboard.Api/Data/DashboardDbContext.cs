@@ -18,6 +18,8 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
     public DbSet<ProjectBudget> ProjectBudgets => Set<ProjectBudget>();
     public DbSet<ExecutionRecord> Executions => Set<ExecutionRecord>();
     public DbSet<ExecutionAudit> ExecutionAudit => Set<ExecutionAudit>();
+    public DbSet<NotificationPolicy> NotificationPolicies => Set<NotificationPolicy>();
+    public DbSet<NotificationRecord> Notifications => Set<NotificationRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -192,5 +194,30 @@ public sealed class DashboardDbContext(DbContextOptions<DashboardDbContext> opti
             .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
         executionAudit.HasOne(item => item.ExecutionRecord).WithMany(item => item.Audit)
             .HasForeignKey(item => item.ExecutionRecordId).OnDelete(DeleteBehavior.Cascade);
+
+        var notificationPolicy = modelBuilder.Entity<NotificationPolicy>();
+        notificationPolicy.HasKey(item => item.Id);
+        notificationPolicy.HasIndex(item => item.ProjectId).IsUnique();
+        notificationPolicy.Property(item => item.DeliveryMode).HasMaxLength(30);
+        notificationPolicy.Property(item => item.MinimumSeverity).HasMaxLength(20);
+        notificationPolicy.HasOne(item => item.Project).WithOne(item => item.NotificationPolicy)
+            .HasForeignKey<NotificationPolicy>(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+
+        var notification = modelBuilder.Entity<NotificationRecord>();
+        notification.HasKey(item => item.Id);
+        notification.HasIndex(item => new { item.ProjectId, item.CreatedAt });
+        notification.HasIndex(item => new { item.ProjectId, item.Status });
+        notification.HasIndex(item => new { item.ProjectId, item.DeduplicationKey, item.CreatedAt });
+        notification.Property(item => item.DeduplicationKey).HasMaxLength(160);
+        notification.Property(item => item.Category).HasMaxLength(40);
+        notification.Property(item => item.Severity).HasMaxLength(20);
+        notification.Property(item => item.Title).HasMaxLength(180);
+        notification.Property(item => item.Message).HasMaxLength(1200);
+        notification.Property(item => item.Status).HasMaxLength(30);
+        notification.Property(item => item.ErrorMessage).HasMaxLength(1000);
+        notification.HasOne(item => item.Project).WithMany(item => item.Notifications)
+            .HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        notification.HasOne(item => item.NotificationPolicy).WithMany()
+            .HasForeignKey(item => item.NotificationPolicyId).OnDelete(DeleteBehavior.Restrict);
     }
 }

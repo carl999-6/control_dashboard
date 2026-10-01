@@ -307,6 +307,61 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.Empty(secondExecutions);
     }
 
+    [Fact]
+    public async Task Notification_simulation_groups_duplicates_records_failures_retries_and_respects_policy()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var firstProject = await CreateProjectAsync(client, "Alertas Alfa", "alertas-alfa.local");
+        var secondProject = await CreateProjectAsync(client, "Alertas Beta", "alertas-beta.local");
+
+        var policyResponse = await client.PutAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/policy",
+            new NotificationPolicyRequest(true, "info", 60, 0, 0));
+        policyResponse.EnsureSuccessStatusCode();
+        var policy = (await policyResponse.Content.ReadFromJsonAsync<NotificationPolicyResponse>())!;
+        Assert.Equal("simulated", policy.DeliveryMode);
+
+        var firstDispatch = new DispatchNotificationRequest("build-123", "operations", "warning", "Pruebas completadas", "El flujo local terminó.", false);
+        var sentResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch", firstDispatch);
+        sentResponse.EnsureSuccessStatusCode();
+        var sent = (await sentResponse.Content.ReadFromJsonAsync<NotificationResponse>())!;
+        Assert.Equal("sent", sent.Status);
+        Assert.Equal(1, sent.AttemptCount);
+
+        var groupedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch", firstDispatch);
+        groupedResponse.EnsureSuccessStatusCode();
+        var grouped = (await groupedResponse.Content.ReadFromJsonAsync<NotificationResponse>())!;
+        Assert.Equal(sent.Id, grouped.Id);
+        Assert.Equal("grouped", grouped.Status);
+        Assert.Equal(2, grouped.GroupCount);
+
+        var failedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch",
+            new DispatchNotificationRequest("provider-down", "operations", "critical", "Fallo del proveedor", "Fallo simulado para reintentar.", true));
+        failedResponse.EnsureSuccessStatusCode();
+        var failed = (await failedResponse.Content.ReadFromJsonAsync<NotificationResponse>())!;
+        Assert.Equal("failed", failed.Status);
+        Assert.Contains("simulado", failed.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        var retryResponse = await client.PostAsync($"/api/projects/{firstProject.Id}/notifications/{failed.Id}/retry", null);
+        retryResponse.EnsureSuccessStatusCode();
+        var recovered = (await retryResponse.Content.ReadFromJsonAsync<NotificationResponse>())!;
+        Assert.Equal("sent", recovered.Status);
+        Assert.Equal(2, recovered.AttemptCount);
+        Assert.Empty(recovered.ErrorMessage);
+
+        var criticalOnly = await client.PutAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/policy",
+            new NotificationPolicyRequest(true, "critical", 60, 0, 0));
+        criticalOnly.EnsureSuccessStatusCode();
+        var suppressedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch",
+            new DispatchNotificationRequest("low-priority", "editorial", "info", "Nota informativa", "No debe entregarse por el umbral.", false));
+        suppressedResponse.EnsureSuccessStatusCode();
+        Assert.Equal("suppressed", (await suppressedResponse.Content.ReadFromJsonAsync<NotificationResponse>())!.Status);
+
+        var secondItems = await client.GetFromJsonAsync<List<NotificationResponse>>($"/api/projects/{secondProject.Id}/notifications");
+        Assert.NotNull(secondItems);
+        Assert.Empty(secondItems);
+    }
+
     private static async Task<ProjectResponse> CreateProjectAsync(HttpClient client, string name, string domain)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new ProjectRequest(
