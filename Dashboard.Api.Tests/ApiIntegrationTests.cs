@@ -101,6 +101,70 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.False(payload.CompactNotifications);
     }
 
+    [Fact]
+    public async Task Marketing_flow_imports_aggregates_and_preserves_project_isolation()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var first = await CreateProjectAsync(client, "Marketing Alfa", "marketing-alfa.local");
+        var second = await CreateProjectAsync(client, "Marketing Beta", "marketing-beta.local");
+
+        var campaignResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/marketing/campaigns", new CampaignRequest(
+            "Lanzamiento", "Medir interés sin identificar personas", "active", "lanzamiento-q4", null, null));
+        campaignResponse.EnsureSuccessStatusCode();
+        var campaign = (await campaignResponse.Content.ReadFromJsonAsync<CampaignResponse>())!;
+
+        var postResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/marketing/posts", new SocialPostRequest(
+            campaign.Id, "instagram", "Anuncio de lanzamiento", "carrusel", "published", "https://example.test/post",
+            DateTimeOffset.UtcNow, 1000, 120, 45));
+        postResponse.EnsureSuccessStatusCode();
+        var post = (await postResponse.Content.ReadFromJsonAsync<SocialPostResponse>())!;
+
+        var updateCampaign = await client.PutAsJsonAsync($"/api/projects/{first.Id}/marketing/campaigns/{campaign.Id}", new CampaignRequest(
+            "Lanzamiento actualizado", "Medir interés agregado", "paused", "lanzamiento-q4", null, null));
+        var updatePost = await client.PutAsJsonAsync($"/api/projects/{first.Id}/marketing/posts/{post.Id}", new SocialPostRequest(
+            campaign.Id, "instagram", "Anuncio actualizado", "carrusel", "published", "https://example.test/post",
+            post.PublishedAt, 1050, 125, 48));
+        updateCampaign.EnsureSuccessStatusCode();
+        updatePost.EnsureSuccessStatusCode();
+
+        var crossProjectPost = await client.PostAsJsonAsync($"/api/projects/{second.Id}/marketing/posts", new SocialPostRequest(
+            campaign.Id, "x", "No debe asociarse", "post", "draft", string.Empty, null, 0, 0, 0));
+        Assert.Equal(HttpStatusCode.BadRequest, crossProjectPost.StatusCode);
+
+        var importResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/marketing/events/import", new MarketingImportRequest(
+        [
+            new MarketingEventImportItem("visit", "instagram", "social", "/landing", 100, null, campaign.Id, post.Id, "import_csv"),
+            new MarketingEventImportItem("contact", "instagram", "social", "/contacto", 8, null, campaign.Id, post.Id, "import_csv"),
+        ]));
+        importResponse.EnsureSuccessStatusCode();
+
+        var firstSummary = await client.GetFromJsonAsync<MarketingSummaryResponse>($"/api/projects/{first.Id}/marketing/summary");
+        var secondSummary = await client.GetFromJsonAsync<MarketingSummaryResponse>($"/api/projects/{second.Id}/marketing/summary");
+        var campaigns = await client.GetFromJsonAsync<List<CampaignResponse>>($"/api/projects/{first.Id}/marketing/campaigns");
+        var posts = await client.GetFromJsonAsync<List<SocialPostResponse>>($"/api/projects/{first.Id}/marketing/posts");
+        Assert.NotNull(firstSummary);
+        Assert.NotNull(secondSummary);
+        Assert.Equal(100, firstSummary.Funnel.Single(item => item.Stage == "visit").Count);
+        Assert.Equal(8, firstSummary.Funnel.Single(item => item.Stage == "contact").Count);
+        Assert.Equal(1, firstSummary.Campaigns);
+        Assert.Equal(1, firstSummary.Posts);
+        Assert.Equal(0, secondSummary.Funnel.Single(item => item.Stage == "visit").Count);
+        Assert.Equal(0, secondSummary.Campaigns);
+        Assert.Equal(0, secondSummary.Posts);
+        Assert.NotNull(campaigns);
+        Assert.NotNull(posts);
+        Assert.Single(campaigns);
+        Assert.Single(posts);
+        Assert.Equal("Lanzamiento actualizado", campaigns.Single().Name);
+        Assert.Equal(1050, posts.Single().Impressions);
+
+        var deletePost = await client.DeleteAsync($"/api/projects/{first.Id}/marketing/posts/{post.Id}");
+        var deleteCampaign = await client.DeleteAsync($"/api/projects/{first.Id}/marketing/campaigns/{campaign.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deletePost.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, deleteCampaign.StatusCode);
+    }
+
     private static async Task<ProjectResponse> CreateProjectAsync(HttpClient client, string name, string domain)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new ProjectRequest(

@@ -15,4 +15,7 @@ public sealed class Project
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public ICollection<Goal> Goals { get; set; } = [];
+    public ICollection<Campaign> Campaigns { get; set; } = [];
+    public ICollection<SocialPost> SocialPosts { get; set; } = [];
+    public ICollection<MarketingEvent> MarketingEvents { get; set; } = [];
 }

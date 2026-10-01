@@ -50,7 +50,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: esquema de datos, API de proyectos, formularios y pruebas de aislamiento.
 - Criterios de aceptación: los proyectos se crean, editan y consultan sin mezclar sus datos; el acceso local protege la aplicación.
 - Cómo se probará: pruebas de API, migraciones desde cero y flujo manual en navegador.
-- Estado: lista para revisión.
+- Estado: aprobada.
 
 ### Fase 3 — Marketing, campañas y analítica simulada
 
@@ -60,7 +60,7 @@ Estas decisiones se pueden revisar al cerrar la Fase 1 si la validación de Carl
 - Entregables: pantallas, endpoints y pruebas del flujo de atribución.
 - Criterios de aceptación: una publicación puede asociarse a campaña y métricas sin afirmar causalidad o identidad no disponible.
 - Cómo se probará: pruebas de validación, importación y recorrido completo.
-- Estado: pendiente.
+- Estado: lista para revisión.
 
 ### Fase 4 — SEO, contenido y calendario editorial
 

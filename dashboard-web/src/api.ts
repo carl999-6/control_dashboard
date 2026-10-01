@@ -48,6 +48,65 @@ export type Session = {
   displayName: string | null
 }
 
+export type Campaign = {
+  id: string
+  projectId: string
+  name: string
+  objective: string
+  status: string
+  utmCampaign: string
+  startDate: string | null
+  endDate: string | null
+  isDemoData: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type CampaignInput = Pick<Campaign, 'name' | 'objective' | 'status' | 'utmCampaign' | 'startDate' | 'endDate'>
+
+export type SocialPost = {
+  id: string
+  projectId: string
+  campaignId: string | null
+  platform: string
+  topic: string
+  format: string
+  status: string
+  externalUrl: string
+  dataSource: string
+  publishedAt: string | null
+  impressions: number
+  engagements: number
+  clicks: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type SocialPostInput = Pick<SocialPost, 'campaignId' | 'platform' | 'topic' | 'format' | 'status' | 'externalUrl' | 'publishedAt' | 'impressions' | 'engagements' | 'clicks'>
+
+export type MarketingEventInput = {
+  stage: string
+  source: string
+  medium: string
+  landingPath: string
+  count: number
+  occurredAt: string | null
+  campaignId: string | null
+  socialPostId: string | null
+  dataSource: string
+}
+
+export type MarketingSummary = {
+  funnel: { stage: string; count: number }[]
+  sources: { source: string; visits: number; contacts: number }[]
+  campaigns: number
+  posts: number
+  impressions: number
+  engagements: number
+  clicks: number
+  containsDemoData: boolean
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -96,4 +155,14 @@ export const api = {
   deleteGoal: (projectId: string, goalId: string) => request<void>(`/api/projects/${projectId}/goals/${goalId}`, { method: 'DELETE' }),
   getSettings: () => request<Preference>('/api/settings'),
   updateSettings: (settings: Omit<Preference, 'id' | 'updatedAt'>) => request<Preference>('/api/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  getCampaigns: (projectId: string) => request<Campaign[]>(`/api/projects/${projectId}/marketing/campaigns`),
+  createCampaign: (projectId: string, campaign: CampaignInput) => request<Campaign>(`/api/projects/${projectId}/marketing/campaigns`, { method: 'POST', body: JSON.stringify(campaign) }),
+  updateCampaign: (projectId: string, campaignId: string, campaign: CampaignInput) => request<Campaign>(`/api/projects/${projectId}/marketing/campaigns/${campaignId}`, { method: 'PUT', body: JSON.stringify(campaign) }),
+  deleteCampaign: (projectId: string, campaignId: string) => request<void>(`/api/projects/${projectId}/marketing/campaigns/${campaignId}`, { method: 'DELETE' }),
+  getSocialPosts: (projectId: string) => request<SocialPost[]>(`/api/projects/${projectId}/marketing/posts`),
+  createSocialPost: (projectId: string, post: SocialPostInput) => request<SocialPost>(`/api/projects/${projectId}/marketing/posts`, { method: 'POST', body: JSON.stringify(post) }),
+  updateSocialPost: (projectId: string, postId: string, post: SocialPostInput) => request<SocialPost>(`/api/projects/${projectId}/marketing/posts/${postId}`, { method: 'PUT', body: JSON.stringify(post) }),
+  deleteSocialPost: (projectId: string, postId: string) => request<void>(`/api/projects/${projectId}/marketing/posts/${postId}`, { method: 'DELETE' }),
+  getMarketingSummary: (projectId: string) => request<MarketingSummary>(`/api/projects/${projectId}/marketing/summary`),
+  importMarketingEvents: (projectId: string, events: MarketingEventInput[]) => request<{ imported: number; totalCount: number }>(`/api/projects/${projectId}/marketing/events/import`, { method: 'POST', body: JSON.stringify({ events }) }),
 }

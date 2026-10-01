@@ -2,7 +2,7 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 2 lista para revisión. Las métricas del dashboard siguen siendo simuladas; proyectos, objetivos y ajustes ya se guardan localmente en SQLite.
+> Estado actual: Fase 3 lista para revisión. Proyectos, objetivos, ajustes, campañas, publicaciones y eventos agregados de marketing se guardan localmente en SQLite. Los datos semilla siguen claramente identificados como simulados.
 
 ## Requisitos
 
@@ -42,7 +42,18 @@ No guardes la contraseña elegida en Git. La sesión usa una cookie `HttpOnly` y
 
 ### Datos locales y migraciones
 
-La base SQLite se crea automáticamente en `Dashboard.Api/Data/dashboard.db`. Al arrancar, la API aplica las migraciones pendientes y agrega los datos semilla únicamente cuando no existen proyectos.
+La base SQLite se crea automáticamente en `Dashboard.Api/Data/dashboard.db`. Al arrancar, la API aplica las migraciones pendientes y agrega cada conjunto de datos semilla únicamente cuando todavía no existe.
+
+### Módulo de marketing
+
+Selecciona un proyecto y abre **Marketing** para:
+
+- crear y editar campañas y publicaciones;
+- generar enlaces con `utm_source`, `utm_medium`, `utm_campaign` y `utm_content`;
+- revisar el embudo agregado por etapa y fuente;
+- validar e importar CSV o JSON con conteos agregados.
+
+El importador acepta las etapas `visit`, `interest`, `contact` y `quote`. Sus campos principales son `stage`, `source`, `medium`, `count`, `landingPath` y `occurredAt`; opcionalmente admite `campaignId` y `socialPostId` del mismo proyecto. No se deben importar nombres, correos, IP ni identificadores personales.
 
 Para crear una migración después de modificar el modelo:
 

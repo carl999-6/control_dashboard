@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Dashboard.Api.Contracts;
 using Dashboard.Api.Data;
 using Dashboard.Api.Domain;
+using Dashboard.Api.Endpoints;
 using Dashboard.Api.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -247,6 +248,8 @@ settings.MapPut("/", async (PreferenceRequest request, DashboardDbContext db, Ca
     await db.SaveChangesAsync(cancellationToken);
     return Results.Ok(preference);
 });
+
+app.MapMarketingEndpoints();
 
 app.Run();
 
