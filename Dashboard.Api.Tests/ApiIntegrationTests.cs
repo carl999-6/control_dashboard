@@ -71,6 +71,29 @@ public sealed class ApiIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Api_health_endpoints_are_cache_safe_and_report_readiness()
+    {
+        using var client = _factory.CreateClient();
+        var health = await client.GetAsync("/api/health");
+        health.EnsureSuccessStatusCode();
+        Assert.Equal("nosniff", health.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("DENY", health.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal("no-store", health.Headers.GetValues("Cache-Control").Single());
+
+        var ready = await client.GetAsync("/api/health/ready");
+        ready.EnsureSuccessStatusCode();
+        Assert.Contains("ready", await ready.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Login_rejects_an_excessively_long_password_before_hashing()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(new string('a', 513)));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Projects_and_goals_stay_isolated_by_project_id()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });

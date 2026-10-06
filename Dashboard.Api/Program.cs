@@ -55,6 +55,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddProblemDetails();
 builder.Services.AddDataProtection()
     .SetApplicationName("Dashboard.Local")
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionDirectory));
@@ -75,6 +76,10 @@ var configuredPassword = builder.Configuration["DASHBOARD_ADMIN_PASSWORD"];
 if (string.IsNullOrWhiteSpace(configuredPassword) && !builder.Environment.IsDevelopment())
 {
     throw new InvalidOperationException("DASHBOARD_ADMIN_PASSWORD es obligatoria fuera del entorno de desarrollo.");
+}
+if (configuredPassword == "control-local-2026" && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+{
+    throw new InvalidOperationException("La contraseña de demostración no puede usarse fuera del entorno de desarrollo.");
 }
 
 builder.Services.AddSingleton(new LocalAdminPasswordVerifier(configuredPassword ?? "control-local-2026"));
@@ -101,6 +106,28 @@ builder.Services.AddHostedService<AutomationWorker>();
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
+{
+    app.UseExceptionHandler();
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+            context.Response.Headers.TryAdd("X-Frame-Options", "DENY");
+            context.Response.Headers.TryAdd("Referrer-Policy", "no-referrer");
+            context.Response.Headers.TryAdd("Cache-Control", "no-store");
+            return Task.CompletedTask;
+        });
+    }
+    await next();
+});
+
 if (string.IsNullOrWhiteSpace(configuredPassword))
 {
     app.Logger.LogWarning("Se usa la contraseña local de demostración. Configura DASHBOARD_ADMIN_PASSWORD antes de compartir el entorno.");
@@ -125,6 +152,19 @@ app.MapGet("/api/health", () => Results.Ok(new
     environment = app.Environment.EnvironmentName,
     timestamp = DateTimeOffset.UtcNow,
 }));
+app.MapGet("/api/health/ready", async (DashboardDbContext db, CancellationToken ct) =>
+{
+    try
+    {
+        return await db.Database.CanConnectAsync(ct)
+            ? Results.Ok(new { status = "ready" })
+            : Results.Problem("La base de datos no está disponible.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    catch
+    {
+        return Results.Problem("La base de datos no está disponible.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 
 var auth = app.MapGroup("/api/auth");
 auth.MapGet("/session", (ClaimsPrincipal user) => Results.Ok(new
@@ -134,7 +174,7 @@ auth.MapGet("/session", (ClaimsPrincipal user) => Results.Ok(new
 }));
 auth.MapPost("/login", async (LoginRequest request, LocalAdminPasswordVerifier verifier, HttpContext context) =>
 {
-    if (!verifier.Verify(request.Password))
+    if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length > 512 || !verifier.Verify(request.Password))
     {
         return Results.ValidationProblem(new Dictionary<string, string[]>
         {

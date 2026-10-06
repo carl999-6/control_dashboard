@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import {
   Activity,
@@ -35,12 +35,13 @@ import {
 import { api, type Project, type Session } from './api'
 import { formatQuetzales, formatRelativeTime } from './formatters'
 import { LoginPage } from './LoginPage'
-import { ProjectsPage } from './ProjectsPage'
-import { SettingsPage } from './SettingsPage'
-import { MarketingPage } from './MarketingPage'
-import { SeoPage } from './SeoPage'
-import { OperationsPage } from './OperationsPage'
-import { NotificationsPage } from './NotificationsPage'
+
+const ProjectsPage = lazy(() => import('./ProjectsPage').then(({ ProjectsPage }) => ({ default: ProjectsPage })))
+const SettingsPage = lazy(() => import('./SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })))
+const MarketingPage = lazy(() => import('./MarketingPage').then(({ MarketingPage }) => ({ default: MarketingPage })))
+const SeoPage = lazy(() => import('./SeoPage').then(({ SeoPage }) => ({ default: SeoPage })))
+const OperationsPage = lazy(() => import('./OperationsPage').then(({ OperationsPage }) => ({ default: OperationsPage })))
+const NotificationsPage = lazy(() => import('./NotificationsPage').then(({ NotificationsPage }) => ({ default: NotificationsPage })))
 
 type NavigationItem = {
   label: string
@@ -198,6 +199,7 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Saltar al contenido principal</a>
       <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''} ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
         <div className="brand">
           <div className="brand__mark" aria-hidden="true">
@@ -283,9 +285,10 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
           </div>
         </header>
 
-        <main>
+        <main id="main-content" tabIndex={-1}>
           {projectsError && <div className="global-error" role="alert">{projectsError}</div>}
-          <Routes>
+          <Suspense fallback={<div className="route-loading" role="status">Cargando módulo…</div>}>
+            <Routes>
             <Route path="/" element={<Overview project={selectedProject} projects={projects} />} />
             <Route path="/proyectos" element={<ProjectsPage projects={projects} onChanged={loadProjects} />} />
             <Route path="/marketing" element={<MarketingPage project={selectedProject} />} />
@@ -297,7 +300,8 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
             {Object.entries(moduleDetails).filter(([path]) => !['/proyectos', '/marketing', '/seo', '/operaciones', '/automatizaciones', '/costos', '/ajustes'].includes(path)).map(([path, details]) => (
               <Route key={path} path={path} element={<ModulePlaceholder {...details} />} />
             ))}
-          </Routes>
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

@@ -175,6 +175,7 @@ Presiona `Ctrl+C` en cada terminal donde esté ejecutándose el frontend o la AP
 - `docs/contexto.md`: visión, alcance y restricciones.
 - `docs/metodologia de trabajo.md`: reglas de colaboración y desarrollo.
 - `docs/observaciones.txt`: observaciones funcionales adicionales.
+- [`docs/operacion-produccion.md`](docs/operacion-produccion.md): preparación y lista de comprobación para una VPS, sin desplegar todavía.
 - `fases.md`: plan ordenado, fase activa y criterios de aceptación.
 
 No guardes tokens, contraseñas, bases SQLite, claves de sesión ni archivos `.env` reales en Git.

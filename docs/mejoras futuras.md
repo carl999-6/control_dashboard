@@ -14,3 +14,4 @@
 - **n8n cuando aporte valor:** usarlo para integraciones que necesiten orquestación visual; mantener reglas, presupuestos e historial en el dashboard y el worker de .NET.
 - **Base de datos de producción:** migrar de SQLite a PostgreSQL con copias de seguridad y restauración probada antes de desplegar en VPS.
 - **Operación segura en VPS:** reforzar acceso, secretos y supervisión de tareas para mantener las automatizaciones disponibles y detectar fallos.
+  - Existe una guía de preparación y endpoints de salud; el despliegue, PostgreSQL, HTTPS, backups y proveedor siguen pendientes de decisión.
