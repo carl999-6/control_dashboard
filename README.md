@@ -2,7 +2,7 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 7F aprobada por Carlos; la fase 7 general sigue en validación final de los flujos locales. PostHog ya mide visitas y conversiones procedentes de enlaces UTM.
+> Estado actual: demo local cerrada por Carlos el 5 de octubre de 2026. PostHog ya mide visitas y conversiones procedentes de enlaces UTM. Las validaciones externas pendientes y las ideas posteriores se distinguen en [`fases.md`](fases.md) y [`docs/mejoras futuras.md`](docs/mejoras%20futuras.md).
 
 ## Requisitos
 
