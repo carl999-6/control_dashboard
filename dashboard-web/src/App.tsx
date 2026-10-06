@@ -161,7 +161,10 @@ function App() {
 function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('dashboard.sidebarCollapsed') === 'true')
-  const [selectedProjectId, setSelectedProjectId] = useState('all')
+  const [selectedProjectId, setSelectedProjectId] = useState(() => {
+    try { return localStorage.getItem('dashboard.selectedProjectId') || 'all' }
+    catch { return 'all' }
+  })
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsError, setProjectsError] = useState('')
   const location = useLocation()
@@ -171,10 +174,15 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
       const loaded = await api.getProjects()
       setProjects(loaded)
       setProjectsError('')
-      if (selectedProjectId !== 'all' && !loaded.some((project) => project.id === selectedProjectId)) setSelectedProjectId('all')
+      setSelectedProjectId(current => current === 'all' || loaded.some(project => project.id === current) ? current : 'all')
     } catch (reason) {
       setProjectsError(reason instanceof Error ? reason.message : 'No fue posible cargar los proyectos.')
     }
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('dashboard.selectedProjectId', selectedProjectId) }
+    catch { /* La selección sigue funcionando si el navegador bloquea el almacenamiento. */ }
   }, [selectedProjectId])
 
   useEffect(() => { void loadProjects() }, [loadProjects])

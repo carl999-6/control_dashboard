@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BellRing, Bot, CheckCircle2, CircleAlert, Clock3, Database, ExternalLink, Globe2, KeyRound, Layers3, Play, RadioTower, RefreshCw, Save, Send, Settings2, ShieldCheck, Sparkles, TriangleAlert, Unplug, Workflow } from 'lucide-react'
 import { api, type AutomationRun, type AutomationSchedule, type AutomationScheduleInput, type GeminiSettings, type GeminiSettingsInput, type NotificationPolicy, type NotificationPolicyInput, type NotificationRecord, type NotificationSummary, type Project, type SearchConsoleStatus, type SearchConsoleSummary, type WordPressSettings, type WordPressSettingsInput } from './api'
 
@@ -97,6 +97,20 @@ function WordPressPanel({ settings, projectId, onAct }: { settings: WordPressSet
 }
 
 function GeminiPanel({ settings, projectId, onAct }: { settings: GeminiSettings; projectId: string; onAct: (action: () => Promise<unknown>, message: string) => Promise<void> }) {
+  const [generating, setGenerating] = useState(false)
+  const generationPending = useRef(false)
+
+  async function generateDraft() {
+    if (generationPending.current) return
+    generationPending.current = true
+    setGenerating(true)
+    try {
+      await onAct(() => runAutomationOrThrow(projectId, 'seo_content_pipeline'), 'Borrador SEO creado en WordPress para revisión manual.')
+    } finally {
+      generationPending.current = false
+      setGenerating(false)
+    }
+  }
   const [form, setForm] = useState<GeminiSettingsInput>({
     isEnabled: settings.isEnabled, model: settings.model, minimumImpressions: settings.minimumImpressions,
     minimumPosition: settings.minimumPosition, maximumPosition: settings.maximumPosition,
@@ -131,7 +145,8 @@ function GeminiPanel({ settings, projectId, onAct }: { settings: GeminiSettings;
       <label>Ejecuciones totales por día<input type="number" min="1" max="20" value={form.maximumTotalGeminiRunsPerDay} onChange={event => setForm({ ...form, maximumTotalGeminiRunsPerDay: Number(event.target.value) })} /></label>
       <label>Extensión mínima (palabras)<input type="number" min="300" max="2500" value={form.minimumDraftWords} onChange={event => setForm({ ...form, minimumDraftWords: Number(event.target.value) })} /></label>
       <label>Máximo de tokens de salida<input type="number" min="512" max="8192" value={form.maximumOutputTokens} onChange={event => setForm({ ...form, maximumOutputTokens: Number(event.target.value) })} /></label>
-      <div className="integration-actions"><button className="secondary-button" type="submit"><Save size={14} /> Guardar configuración</button><button className="primary-button" type="button" disabled={!settings.apiKeyConfigured || !form.isEnabled} onClick={() => void onAct(() => runAutomationOrThrow(projectId, 'seo_content_pipeline'), 'Borrador SEO creado en WordPress para revisión manual.') }><Sparkles size={14} /> Generar siguiente borrador</button></div>
+      <div className="integration-actions"><button className="secondary-button" type="submit" disabled={generating}><Save size={14} /> Guardar configuración</button><button className="primary-button" type="button" disabled={generating || !settings.apiKeyConfigured || !form.isEnabled} aria-busy={generating} onClick={() => void generateDraft()}>{generating ? <RefreshCw size={14} className="generation-spinner" /> : <Sparkles size={14} />}{generating ? 'Generando borrador…' : 'Generar siguiente borrador'}</button></div>
+      {generating && <div className="generation-progress" role="status"><strong>El flujo SEO está en curso.</strong><span>Estamos esperando el resultado de la generación, validación y creación del borrador en WordPress. Puede tardar unos minutos. El resultado aparecerá al terminar.</span></div>}
     </form>
   </section>
 }
