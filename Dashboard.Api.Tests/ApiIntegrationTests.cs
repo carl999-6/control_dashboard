@@ -405,6 +405,10 @@ public sealed class ApiIntegrationTests : IDisposable
         var first = await CreateProjectAsync(client, "Automatización Alfa", "automation-alpha.local");
         var second = await CreateProjectAsync(client, "Automatización Beta", "automation-beta.local");
 
+        var policyResponse = await client.PutAsJsonAsync($"/api/projects/{first.Id}/notifications/policy",
+            new NotificationPolicyRequest(true, "info", 30, 0, 0));
+        policyResponse.EnsureSuccessStatusCode();
+
         var schedules = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{first.Id}/automations");
         Assert.NotNull(schedules);
         Assert.Equal(6, schedules.Count);
