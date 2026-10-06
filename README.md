@@ -2,13 +2,14 @@
 
 Demo local de un dashboard para centralizar decisiones y actividad de desarrollo, operaciones, marketing, SEO, automatizaciones y consumo de APIs. FyrStudios es el primer caso de ejemplo, pero la arquitectura se diseña para varios proyectos.
 
-> Estado actual: Fase 6 lista para revisión. El sistema ya controla ejecuciones simuladas, presupuestos y alertas locales configurables con agrupación y recuperación de fallos. Los datos semilla siguen claramente identificados como simulados y no se realizan llamadas pagadas ni acciones externas.
+> Estado actual: Fase 7F aprobada por Carlos; la fase 7 general sigue en validación final de los flujos locales. PostHog ya mide visitas y conversiones procedentes de enlaces UTM.
 
 ## Requisitos
 
 - Node.js 22 o posterior.
 - npm 10 o posterior.
 - .NET SDK 10.
+- Docker Desktop para ejecutar n8n localmente.
 
 ## Iniciar la aplicación
 
@@ -40,6 +41,36 @@ dotnet run --project Dashboard.Api
 
 No guardes la contraseña elegida en Git. La sesión usa una cookie `HttpOnly` y las claves locales se guardan fuera del control de versiones en `Dashboard.Api/Data/keys/`. En producción se deberá configurar un almacén de claves protegido y persistente.
 
+### Secretos locales
+
+Copia `.env.example` como `.env` en la raíz del proyecto y completa únicamente los valores que vayas habilitando. La API carga ese archivo al arrancar y las variables ya definidas en el sistema tienen prioridad.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Para Telegram completa `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` y reinicia la API. `TELEGRAM_TIMEOUT_SECONDS` controla cuánto espera cada entrega: usa 30 segundos por defecto y admite entre 5 y 120. El dashboard mostrará **Telegram conectado** sin revelar los secretos. El archivo `.env` está excluido de Git.
+
+Para conectar Google Search Console:
+
+1. Habilita **Google Search Console API** en tu proyecto de Google Cloud.
+2. Crea un cliente OAuth 2.0 de tipo **Aplicación web**.
+3. Registra exactamente `http://localhost:5168/api/integrations/search-console/callback` como URI de redirección autorizada.
+4. Completa `GOOGLE_SEARCH_CONSOLE_CLIENT_ID` y `GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET` en `.env` y reinicia la API.
+5. Abre **Automatizaciones → Google Search Console → Conectar con Google**.
+
+El conector solicita exclusivamente `https://www.googleapis.com/auth/webmasters.readonly`. El token de actualización se cifra antes de guardarse en SQLite mediante las claves locales de ASP.NET Data Protection; no se expone al frontend ni aparece en el historial. La cuenta autorizada debe tener acceso verificado a `fyrstudios.com` o a la propiedad correspondiente al dominio configurado en el proyecto.
+
+Para habilitar Gemini, crea una API key en un proyecto **Free Tier sin facturación**, guárdala como `GEMINI_API_KEY` en `.env` y reinicia la API. El dashboard no puede comprobar ni desactivar la facturación de Google: esa garantía depende de que la clave pertenezca a un proyecto sin cuenta de facturación vinculada. El modelo, umbrales SEO, límite diario, extensión y tokens máximos se configuran desde **Automatizaciones**.
+
+Para conectar WordPress completa `WORDPRESS_BASE_URL`, `WORDPRESS_USERNAME` y `WORDPRESS_APPLICATION_PASSWORD` en `.env`, reinicia la API y usa **Automatizaciones → WordPress → Probar conexión**. La contraseña de aplicación nunca se guarda en SQLite ni se devuelve al navegador. La URL, el usuario y la pausa sí se configuran por proyecto desde el dashboard.
+
+Para el asistente de X no necesitas credenciales en el modo manual gratuito. Abre **Marketing → Asistente X**, pega la URL y el texto de un post, agrégalo a la cola y genera la siguiente propuesta. Gemini devuelve tres alternativas con un formato uniforme y un enlace UTM. **Responder en X** abre el compositor web con el post y texto preparados, pero X exige la confirmación humana final. Después copia la URL de tu respuesta ya publicada y pégala en el dashboard para registrarla en el historial.
+
+Telegram recibe el enlace del post original, las tres alternativas en bloques uniformes y un botón nativo **Copiar** para cada respuesta. Por seguridad y brevedad, esos botones copian solo el texto: desde Telegram se abre el post, se pega y se confirma manualmente. El dashboard conserva **Responder en X**, que abre el compositor e incluye también el UTM. Una vez configurada la 7F, PostHog capturará la llegada al sitio y la API importará sus conteos agregados; construir el enlace por sí solo no registra una visita.
+
+La búsqueda reciente automática es opcional y de solo lectura. Requiere `X_BEARER_TOKEN` en `.env`, créditos disponibles en X y activar explícitamente **Lectura pagada**. Antes de cada consulta se comprueba el costo máximo contra el presupuesto del proyecto. La tarifa por post es configurable porque X puede cambiar sus precios. El backend no incluye ninguna operación para publicar, responder, dar me gusta ni seguir cuentas.
+
 ### Datos locales y migraciones
 
 La base SQLite se crea automáticamente en `Dashboard.Api/Data/dashboard.db`. Al arrancar, la API aplica las migraciones pendientes y agrega cada conjunto de datos semilla únicamente cuando todavía no existe.
@@ -55,6 +86,10 @@ Selecciona un proyecto y abre **Marketing** para:
 
 El importador acepta las etapas `visit`, `interest`, `contact` y `quote`. Sus campos principales son `stage`, `source`, `medium`, `count`, `landingPath` y `occurredAt`; opcionalmente admite `campaignId` y `socialPostId` del mismo proyecto. No se deben importar nombres, correos, IP ni identificadores personales.
 
+En **Marketing → PostHog** se configuran región, ID de proyecto, token público, ventana de importación y límite de filas. La clave personal de lectura se guarda únicamente en `.env` como `POSTHOG_PERSONAL_API_KEY`. El dashboard separa los conteos reales de PostHog de los registros manuales y simulados. La sincronización se puede ejecutar en la pantalla o programar en **Automatizaciones**. Repetirla reemplaza los agregados del mismo periodo, sin sumar de nuevo las visitas. Los detalles de instalación en WordPress, incluyendo el formulario WPForms ID 815, están en [`infrastructure/posthog/README.md`](infrastructure/posthog/README.md).
+
+**Sesiones diarias** cuenta sesiones distintas dentro de cada día; una misma sesión que cruce la medianoche puede aparecer en dos días. **Visitas** de un enlace UTM cuenta sesiones distintas de ese enlace, mientras **páginas vistas** cuenta cada carga de página. En **Ver eventos** se consultan bajo demanda hasta 30 eventos recientes del periodo, con navegador, ciudad/país aproximados, dispositivo, sistema operativo y origen UTM o dominio de referencia. Estos detalles no se guardan en la base local ni incluyen IP, identificador de persona o sesión. Si antes aparecían cero sesiones junto con páginas vistas, reinicia la API y vuelve a sincronizar para reemplazar los agregados anteriores.
+
 ### SEO y contenido
 
 Selecciona un proyecto y abre **SEO y contenido** para:
@@ -63,10 +98,10 @@ Selecciona un proyecto y abre **SEO y contenido** para:
 - convertirlas en briefs y borradores en Markdown;
 - revisar el flujo `brief → borrador → revisión → aprobación → programación`;
 - consultar fechas en el calendario editorial;
-- simular el envío como borrador de WordPress sin realizar conexiones externas;
+- crear o reintentar un borrador real de WordPress sin publicarlo;
 - registrar mediciones agregadas y consultar todo el historial de estados.
 
-Las transiciones se validan en la API para impedir saltos de aprobación. La URL de WordPress generada por la simulación utiliza `wordpress.local` y no representa una publicación real.
+Las transiciones se validan en la API. El conector de WordPress fija `status: draft` dentro del backend, comprueba que WordPress confirme ese mismo estado y evita duplicar un post al reintentar. El enlace guardado abre el editor real para que la revisión y publicación sean manuales.
 
 ### Ejecuciones y costos
 
@@ -85,12 +120,30 @@ Los importes son reservas internas estimadas con la tarifa vigente al crear el i
 
 Selecciona un proyecto y abre **Automatizaciones** para:
 
+- activar o pausar cada flujo y configurar frecuencia, hora local, día e intentos máximos diarios;
+- ejecutar manualmente un flujo y revisar su resultado;
 - configurar el umbral de severidad, la ventana de agrupación y el horario silencioso local;
-- simular una alerta o un fallo de entrega sin conectar Telegram;
+- enviar una prueba real si Telegram está configurado o simularla si no lo está;
 - revisar qué evento fue entregado, agrupado, encolado, omitido o falló;
 - recuperar manualmente un fallo y procesar la cola local.
 
-El canal actual es un adaptador `simulated`: no acepta, muestra ni guarda token de bot, chat ID ni otra credencial. “Entregada” significa que la prueba local terminó correctamente; no confirma ningún envío a Telegram. Un bot real requiere autorización explícita y se incorporará mediante configuración segura en una fase posterior.
+En la misma pantalla, el bloque de **Google Search Console** permite autorizar una propiedad, configurar de 7 a 90 días de historial y hasta 25,000 filas, sincronizar manualmente y consultar clics, impresiones, CTR, posición media y consultas principales. La programación diaria utiliza ese mismo flujo. Para evitar datos parciales, la ventana termina dos días antes de la fecha actual.
+
+Los bloques **Gemini para SEO y X** y **WordPress** ejecutan el flujo `métricas de Search Console → umbrales → deduplicación → oportunidad → Gemini → validación → draft local → WordPress draft → historial → Telegram`. SEO y X tienen topes diarios propios y un límite compartido configurable. Si no hay datos, no existe una oportunidad elegible, se alcanzó el límite diario o falta la API key, el flujo se bloquea antes de consumir cuota. Un `429` detiene la ejecución y notifica que la cuota gratuita se agotó; nunca activa otro proveedor. Si WordPress falla, el borrador local se conserva para reintento manual y no se crea una publicación en vivo.
+
+La API lee `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` desde el `.env` local. Nunca guarda ni devuelve esos valores. Sin ambos secretos cambia automáticamente al modo `simulated`; en pruebas automatizadas siempre se fuerza ese modo para impedir llamadas externas accidentales.
+
+Los resúmenes de Telegram incluyen siempre el proyecto y, cuando corresponde, flujo, proveedor, modelo, tokens y costo estimado. Las programaciones se guardan por proyecto. El worker local las revisa mientras la API está encendida; al apagar la computadora dejan de ejecutarse, pero no se pierde su configuración. PostHog Cloud puede seguir capturando tráfico del WordPress público mientras la computadora está apagada; el worker recupera los días configurados al volver a encenderse.
+
+### n8n local
+
+La configuración está en `infrastructure/n8n/`. Copia `infrastructure/n8n/env.example` como `infrastructure/n8n/.env`, cambia `N8N_ENCRYPTION_KEY` y ejecuta:
+
+```powershell
+docker compose --env-file infrastructure/n8n/.env -f infrastructure/n8n/compose.yaml up -d
+```
+
+n8n queda limitado a `127.0.0.1:5678`. No almacenes su clave de cifrado ni credenciales de proveedores en Git.
 
 Para crear una migración después de modificar el modelo:
 
@@ -117,8 +170,9 @@ Presiona `Ctrl+C` en cada terminal donde esté ejecutándose el frontend o la AP
 
 ## Documentación
 
-- `contexto.md`: visión, alcance y restricciones.
-- `metodologia de trabajo.md`: reglas de colaboración y desarrollo.
+- `docs/contexto.md`: visión, alcance y restricciones.
+- `docs/metodologia de trabajo.md`: reglas de colaboración y desarrollo.
+- `docs/observaciones.txt`: observaciones funcionales adicionales.
 - `fases.md`: plan ordenado, fase activa y criterios de aceptación.
 
 No guardes tokens, contraseñas, bases SQLite, claves de sesión ni archivos `.env` reales en Git.

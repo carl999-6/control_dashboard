@@ -17,6 +17,70 @@ namespace Dashboard.Api.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("Dashboard.Api.Domain.AiAutomationSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MaximumCtr")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("MaximumOutputTokens")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MaximumPosition")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("MaximumSeoDraftsPerDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaximumTotalGeminiRunsPerDay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(2);
+
+                    b.Property<int>("MaximumXProposalsPerDay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("MinimumDraftWords")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumImpressions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MinimumPosition")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("AiAutomationSettings");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.ApiRatePlan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -61,6 +125,116 @@ namespace Dashboard.Api.Data.Migrations
                     b.HasIndex("ProjectId", "Provider", "Model", "EffectiveFrom");
 
                     b.ToTable("ApiRatePlans");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AutomationRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AutomationScheduleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AutomationScheduleId", "Status");
+
+                    b.HasIndex("ProjectId", "CreatedAt");
+
+                    b.ToTable("AutomationRuns");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AutomationSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("IntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastRunAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LocalTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MaxRunsPerDay")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("NextRunAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Workflow")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEnabled", "NextRunAt");
+
+                    b.HasIndex("ProjectId", "Workflow")
+                        .IsUnique();
+
+                    b.ToTable("AutomationSchedules");
                 });
 
             modelBuilder.Entity("Dashboard.Api.Domain.Campaign", b =>
@@ -227,6 +401,17 @@ namespace Dashboard.Api.Data.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset?>("WordPressDraftCreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("WordPressPostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("WordPressStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SeoOpportunityId");
@@ -234,6 +419,9 @@ namespace Dashboard.Api.Data.Migrations
                     b.HasIndex("ProjectId", "ScheduledFor");
 
                     b.HasIndex("ProjectId", "Status");
+
+                    b.HasIndex("ProjectId", "WordPressPostId")
+                        .IsUnique();
 
                     b.ToTable("ContentPieces");
                 });
@@ -515,6 +703,73 @@ namespace Dashboard.Api.Data.Migrations
                     b.ToTable("Goals");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.IntegrationConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EncryptedRefreshToken")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalAccount")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GrantedScopes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LookbackDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RowLimit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("IntegrationConnections");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.MarketingEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -649,7 +904,19 @@ namespace Dashboard.Api.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("EstimatedCostUsd")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Flow")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("GroupCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("InputUnits")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDemoData")
@@ -663,10 +930,23 @@ namespace Dashboard.Api.Data.Migrations
                         .HasMaxLength(1200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("NotificationPolicyId")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("OutputUnits")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Severity")
@@ -701,6 +981,168 @@ namespace Dashboard.Api.Data.Migrations
                     b.HasIndex("ProjectId", "DeduplicationKey", "CreatedAt");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.OAuthStateRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StateHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("StateHash")
+                        .IsUnique();
+
+                    b.ToTable("OAuthStates");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.PostHogConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ApiKeyEnvironmentVariable")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ExternalProjectId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LookbackDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublicToken")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RowLimit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("PostHogConnections");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.PostHogMetric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Campaign")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Event")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Medium")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("PostHogConnectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Sessions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("SyncedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostHogConnectionId");
+
+                    b.HasIndex("ProjectId", "Date");
+
+                    b.HasIndex("ProjectId", "Date", "Event", "Source", "Medium", "Campaign", "Content", "Path")
+                        .IsUnique();
+
+                    b.ToTable("PostHogMetrics");
                 });
 
             modelBuilder.Entity("Dashboard.Api.Domain.Project", b =>
@@ -802,6 +1244,55 @@ namespace Dashboard.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectBudgets");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.SearchConsoleMetric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Clicks")
+                        .HasColumnType("REAL");
+
+                    b.Property<double>("Ctr")
+                        .HasColumnType("REAL");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Impressions")
+                        .HasColumnType("REAL");
+
+                    b.Property<Guid>("IntegrationConnectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Page")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("Position")
+                        .HasColumnType("REAL");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Query")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("SyncedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntegrationConnectionId", "Date");
+
+                    b.HasIndex("ProjectId", "Date");
+
+                    b.ToTable("SearchConsoleMetrics");
                 });
 
             modelBuilder.Entity("Dashboard.Api.Domain.SeoOpportunity", b =>
@@ -934,10 +1425,268 @@ namespace Dashboard.Api.Data.Migrations
                     b.ToTable("SocialPosts");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.XAssistantSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ApiReadEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LandingPath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("LastSyncAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MaximumPostsPerSync")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ReadCostUsdPerPost")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchQuery")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToneInstructions")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UtmCampaign")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("XAssistantSettings");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.XReplyProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternativeOne")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternativeTwo")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublishedReplyUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecommendedReply")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RiskNotes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SelectedReply")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TrackingUrl")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("XSourcePostId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("XSourcePostId")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "Status", "CreatedAt");
+
+                    b.ToTable("XReplyProposals");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.XSourcePost", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorUsername")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DataSource")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalPostId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ImpressionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LikeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("PostedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QuoteCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReplyCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RepostCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "ExternalPostId")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "Status", "PostedAt");
+
+                    b.ToTable("XSourcePosts");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AiAutomationSettings", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithOne("AiAutomationSettings")
+                        .HasForeignKey("Dashboard.Api.Domain.AiAutomationSettings", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.ApiRatePlan", b =>
                 {
                     b.HasOne("Dashboard.Api.Domain.Project", "Project")
                         .WithMany("ApiRatePlans")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AutomationRun", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.AutomationSchedule", "Schedule")
+                        .WithMany("Runs")
+                        .HasForeignKey("AutomationScheduleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("AutomationRuns")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AutomationSchedule", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("AutomationSchedules")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1049,6 +1798,17 @@ namespace Dashboard.Api.Data.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.IntegrationConnection", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("IntegrationConnections")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.MarketingEvent", b =>
                 {
                     b.HasOne("Dashboard.Api.Domain.Campaign", "Campaign")
@@ -1104,6 +1864,47 @@ namespace Dashboard.Api.Data.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.OAuthStateRecord", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("OAuthStates")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.PostHogConnection", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithOne("PostHogConnection")
+                        .HasForeignKey("Dashboard.Api.Domain.PostHogConnection", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.PostHogMetric", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.PostHogConnection", "Connection")
+                        .WithMany("Metrics")
+                        .HasForeignKey("PostHogConnectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("PostHogMetrics")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Connection");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.ProjectBudget", b =>
                 {
                     b.HasOne("Dashboard.Api.Domain.Project", "Project")
@@ -1111,6 +1912,25 @@ namespace Dashboard.Api.Data.Migrations
                         .HasForeignKey("Dashboard.Api.Domain.ProjectBudget", "ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.SearchConsoleMetric", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.IntegrationConnection", "Connection")
+                        .WithMany("SearchConsoleMetrics")
+                        .HasForeignKey("IntegrationConnectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("SearchConsoleMetrics")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Connection");
 
                     b.Navigation("Project");
                 });
@@ -1144,9 +1964,55 @@ namespace Dashboard.Api.Data.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.XAssistantSettings", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithOne("XAssistantSettings")
+                        .HasForeignKey("Dashboard.Api.Domain.XAssistantSettings", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.XReplyProposal", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("XReplyProposals")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Dashboard.Api.Domain.XSourcePost", "SourcePost")
+                        .WithMany("Proposals")
+                        .HasForeignKey("XSourcePostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("SourcePost");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.XSourcePost", b =>
+                {
+                    b.HasOne("Dashboard.Api.Domain.Project", "Project")
+                        .WithMany("XSourcePosts")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.ApiRatePlan", b =>
                 {
                     b.Navigation("Executions");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.AutomationSchedule", b =>
+                {
+                    b.Navigation("Runs");
                 });
 
             modelBuilder.Entity("Dashboard.Api.Domain.Campaign", b =>
@@ -1168,9 +2034,25 @@ namespace Dashboard.Api.Data.Migrations
                     b.Navigation("Retries");
                 });
 
+            modelBuilder.Entity("Dashboard.Api.Domain.IntegrationConnection", b =>
+                {
+                    b.Navigation("SearchConsoleMetrics");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.PostHogConnection", b =>
+                {
+                    b.Navigation("Metrics");
+                });
+
             modelBuilder.Entity("Dashboard.Api.Domain.Project", b =>
                 {
+                    b.Navigation("AiAutomationSettings");
+
                     b.Navigation("ApiRatePlans");
+
+                    b.Navigation("AutomationRuns");
+
+                    b.Navigation("AutomationSchedules");
 
                     b.Navigation("Budget");
 
@@ -1186,15 +2068,31 @@ namespace Dashboard.Api.Data.Migrations
 
                     b.Navigation("Goals");
 
+                    b.Navigation("IntegrationConnections");
+
                     b.Navigation("MarketingEvents");
 
                     b.Navigation("NotificationPolicy");
 
                     b.Navigation("Notifications");
 
+                    b.Navigation("OAuthStates");
+
+                    b.Navigation("PostHogConnection");
+
+                    b.Navigation("PostHogMetrics");
+
+                    b.Navigation("SearchConsoleMetrics");
+
                     b.Navigation("SeoOpportunities");
 
                     b.Navigation("SocialPosts");
+
+                    b.Navigation("XAssistantSettings");
+
+                    b.Navigation("XReplyProposals");
+
+                    b.Navigation("XSourcePosts");
                 });
 
             modelBuilder.Entity("Dashboard.Api.Domain.SeoOpportunity", b =>
@@ -1205,6 +2103,11 @@ namespace Dashboard.Api.Data.Migrations
             modelBuilder.Entity("Dashboard.Api.Domain.SocialPost", b =>
                 {
                     b.Navigation("Events");
+                });
+
+            modelBuilder.Entity("Dashboard.Api.Domain.XSourcePost", b =>
+                {
+                    b.Navigation("Proposals");
                 });
 #pragma warning restore 612, 618
         }

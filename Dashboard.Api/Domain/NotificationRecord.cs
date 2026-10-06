@@ -10,6 +10,12 @@ public sealed class NotificationRecord
     public required string Severity { get; set; }
     public required string Title { get; set; }
     public required string Message { get; set; }
+    public required string Flow { get; set; }
+    public required string Provider { get; set; }
+    public required string Model { get; set; }
+    public long? InputUnits { get; set; }
+    public long? OutputUnits { get; set; }
+    public decimal? EstimatedCostUsd { get; set; }
     public required string Status { get; set; }
     public int GroupCount { get; set; }
     public int AttemptCount { get; set; }

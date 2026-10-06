@@ -27,4 +27,15 @@ public sealed class Project
     public ICollection<ExecutionAudit> ExecutionAudit { get; set; } = [];
     public NotificationPolicy? NotificationPolicy { get; set; }
     public ICollection<NotificationRecord> Notifications { get; set; } = [];
+    public ICollection<AutomationSchedule> AutomationSchedules { get; set; } = [];
+    public ICollection<AutomationRun> AutomationRuns { get; set; } = [];
+    public ICollection<IntegrationConnection> IntegrationConnections { get; set; } = [];
+    public ICollection<OAuthStateRecord> OAuthStates { get; set; } = [];
+    public ICollection<SearchConsoleMetric> SearchConsoleMetrics { get; set; } = [];
+    public AiAutomationSettings? AiAutomationSettings { get; set; }
+    public XAssistantSettings? XAssistantSettings { get; set; }
+    public ICollection<XSourcePost> XSourcePosts { get; set; } = [];
+    public ICollection<XReplyProposal> XReplyProposals { get; set; } = [];
+    public PostHogConnection? PostHogConnection { get; set; }
+    public ICollection<PostHogMetric> PostHogMetrics { get; set; } = [];
 }

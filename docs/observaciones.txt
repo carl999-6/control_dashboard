@@ -1,0 +1,4 @@
+-quiero que el menu sea desplegable y que se pueda encoger para asi, poder hacer mas clara y grande la vista del sistema, que solo aparezcan los iconos, y solo cuando se agrande que ya salgan los nombres y mas información.
+-recuerda una de las ideas principales del sistema "hacer publicaciones en redes sociales y que cada publicacion vaya con un enlace de la web, y que trackee de donde viene la visita," es decir, lo que actualmente muestra en marketing es muy general, yo quiero algo mucho mas especifico, *adjuntar imagen de referencia*
+-en la automatización hay una herramienta muy importante que tal vez estas pasando por alto y esta es n8n, esta nos ayudara a conectarse con nuestras apis y mandarles tareas.
+-veo que estas usando SQLite, para la demo local esta bien, pero en produccion se debe cambiar a una base de datos "buena" como PostgreSQL.

@@ -25,6 +25,9 @@ public sealed class ContentPiece
     public int? ResultClicks { get; set; }
     public required string ResultNotes { get; set; }
     public required string SimulatedWordPressUrl { get; set; }
+    public int? WordPressPostId { get; set; }
+    public string WordPressStatus { get; set; } = string.Empty;
+    public DateTimeOffset? WordPressDraftCreatedAt { get; set; }
     public bool IsDemoData { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

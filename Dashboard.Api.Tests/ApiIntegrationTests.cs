@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using Dashboard.Api.Contracts;
+using Dashboard.Api.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -21,6 +23,16 @@ public sealed class ApiIntegrationTests : IDisposable
     {
         Environment.SetEnvironmentVariable("DASHBOARD_ADMIN_PASSWORD", "test-password");
         Environment.SetEnvironmentVariable("ConnectionStrings__Dashboard", $"Data Source={_databasePath};Pooling=False");
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_CLIENT_ID", "test-client-id");
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET", "test-client-secret");
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_REDIRECT_URI", "http://localhost/api/integrations/search-console/callback");
+        Environment.SetEnvironmentVariable("DASHBOARD_WEB_BASE_URL", "http://localhost:5173");
+        Environment.SetEnvironmentVariable("GEMINI_API_KEY", "test-gemini-key");
+        Environment.SetEnvironmentVariable("X_BEARER_TOKEN", "test-x-token");
+        Environment.SetEnvironmentVariable("WORDPRESS_BASE_URL", "https://fyrstudios.com/");
+        Environment.SetEnvironmentVariable("WORDPRESS_USERNAME", "dashboard-bot");
+        Environment.SetEnvironmentVariable("WORDPRESS_APPLICATION_PASSWORD", "test-wordpress-password");
+        Environment.SetEnvironmentVariable("POSTHOG_PERSONAL_API_KEY", "test-posthog-read-key");
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
@@ -28,6 +40,16 @@ public sealed class ApiIntegrationTests : IDisposable
             {
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
                 services.AddLogging(logging => logging.ClearProviders());
+                services.RemoveAll<ISearchConsoleApiClient>();
+                services.AddSingleton<ISearchConsoleApiClient, FakeSearchConsoleApiClient>();
+                services.RemoveAll<IGeminiApiClient>();
+                services.AddSingleton<IGeminiApiClient, FakeGeminiApiClient>();
+                services.RemoveAll<IWordPressApiClient>();
+                services.AddSingleton<IWordPressApiClient, FakeWordPressApiClient>();
+                services.RemoveAll<IXApiClient>();
+                services.AddSingleton<IXApiClient, FakeXApiClient>();
+                services.RemoveAll<IPostHogApiClient>();
+                services.AddSingleton<IPostHogApiClient, FakePostHogApiClient>();
             });
         });
     }
@@ -202,11 +224,21 @@ public sealed class ApiIntegrationTests : IDisposable
             new EditorialTransitionRequest("scheduled", "Fecha acordada", scheduledFor));
         schedule.EnsureSuccessStatusCode();
 
-        var simulation = await client.PostAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/simulate-wordpress-draft", null);
-        simulation.EnsureSuccessStatusCode();
-        var simulated = (await simulation.Content.ReadFromJsonAsync<ContentPieceResponse>())!;
-        Assert.Equal("sent_draft", simulated.Status);
-        Assert.Contains("wordpress.local", simulated.SimulatedWordPressUrl);
+        var fakeWordPress = Assert.IsType<FakeWordPressApiClient>(_factory.Services.GetRequiredService<IWordPressApiClient>());
+        fakeWordPress.FailNextCreate = true;
+        var failedWordPressDraft = await client.PostAsync($"/api/projects/{first.Id}/integrations/wordpress/content/{content.Id}/draft", null);
+        Assert.Equal(HttpStatusCode.Conflict, failedWordPressDraft.StatusCode);
+        var preserved = (await client.GetFromJsonAsync<List<ContentPieceResponse>>($"/api/projects/{first.Id}/seo/content"))!.Single(item => item.Id == content.Id);
+        Assert.Equal("scheduled", preserved.Status);
+        Assert.Null(preserved.WordPressPostId);
+
+        var wordPressDraftResponse = await client.PostAsync($"/api/projects/{first.Id}/integrations/wordpress/content/{content.Id}/draft", null);
+        wordPressDraftResponse.EnsureSuccessStatusCode();
+        var wordPressDraft = (await wordPressDraftResponse.Content.ReadFromJsonAsync<ContentPieceResponse>())!;
+        Assert.Equal("sent_draft", wordPressDraft.Status);
+        Assert.Equal("draft", wordPressDraft.WordPressStatus);
+        Assert.Contains("fyrstudios.com", wordPressDraft.WordPressEditUrl);
+        Assert.Equal(2, fakeWordPress.CreateCalls);
 
         var measurement = await client.PutAsJsonAsync($"/api/projects/{first.Id}/seo/content/{content.Id}/measurement",
             new ContentMeasurementRequest(320, 14, "Mejora observada, sin afirmar causalidad.", null));
@@ -321,12 +353,15 @@ public sealed class ApiIntegrationTests : IDisposable
         var policy = (await policyResponse.Content.ReadFromJsonAsync<NotificationPolicyResponse>())!;
         Assert.Equal("simulated", policy.DeliveryMode);
 
-        var firstDispatch = new DispatchNotificationRequest("build-123", "operations", "warning", "Pruebas completadas", "El flujo local terminó.", false);
+        var firstDispatch = new DispatchNotificationRequest("build-123", "operations", "warning", "Pruebas completadas", "El flujo local terminó.", false,
+            "seo_draft", "gemini", "flash-test", 8400, 2100, 0.0012m);
         var sentResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch", firstDispatch);
         sentResponse.EnsureSuccessStatusCode();
         var sent = (await sentResponse.Content.ReadFromJsonAsync<NotificationResponse>())!;
         Assert.Equal("sent", sent.Status);
         Assert.Equal(1, sent.AttemptCount);
+        Assert.Equal("gemini", sent.Provider);
+        Assert.Equal(8400, sent.InputUnits);
 
         var groupedResponse = await client.PostAsJsonAsync($"/api/projects/{firstProject.Id}/notifications/dispatch", firstDispatch);
         groupedResponse.EnsureSuccessStatusCode();
@@ -362,6 +397,279 @@ public sealed class ApiIntegrationTests : IDisposable
         Assert.Empty(secondItems);
     }
 
+    [Fact]
+    public async Task Automations_are_configurable_manual_and_project_isolated()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var first = await CreateProjectAsync(client, "Automatización Alfa", "automation-alpha.local");
+        var second = await CreateProjectAsync(client, "Automatización Beta", "automation-beta.local");
+
+        var schedules = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{first.Id}/automations");
+        Assert.NotNull(schedules);
+        Assert.Equal(6, schedules.Count);
+        Assert.Contains(schedules, item => item.Workflow == "search_console_sync" && !item.IsEnabled);
+        Assert.Contains(schedules, item => item.Workflow == "telegram_daily_summary" && item.IsEnabled);
+        Assert.Contains(schedules, item => item.Workflow == "x_response_pipeline" && !item.IsEnabled);
+        Assert.Contains(schedules, item => item.Workflow == "posthog_sync" && !item.IsEnabled);
+
+        var update = await client.PutAsJsonAsync($"/api/projects/{first.Id}/automations/search_console_sync",
+            new AutomationScheduleRequest(true, "daily", null, "06:30", null, 1));
+        update.EnsureSuccessStatusCode();
+        var configured = (await update.Content.ReadFromJsonAsync<AutomationScheduleResponse>())!;
+        Assert.True(configured.IsEnabled);
+        Assert.NotNull(configured.NextRunAt);
+
+        var pendingConnectorResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/search_console_sync/run", null);
+        pendingConnectorResponse.EnsureSuccessStatusCode();
+        var pendingConnector = (await pendingConnectorResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("blocked", pendingConnector.Status);
+        Assert.Equal("SEARCH_CONSOLE_NOT_CONNECTED", pendingConnector.ErrorCode);
+
+        var summaryResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/telegram_daily_summary/run", null);
+        summaryResponse.EnsureSuccessStatusCode();
+        var summaryRun = (await summaryResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("succeeded", summaryRun.Status);
+
+        var notifications = await client.GetFromJsonAsync<List<NotificationResponse>>($"/api/projects/{first.Id}/notifications");
+        Assert.Contains(notifications!, item => item.Flow == "telegram_daily_summary" && item.Status == "sent");
+        var secondRuns = await client.GetFromJsonAsync<List<AutomationRunResponse>>($"/api/projects/{second.Id}/automations/runs");
+        Assert.Empty(secondRuns!);
+    }
+
+    [Fact]
+    public async Task Search_console_oauth_sync_summary_and_disconnect_are_safe_and_isolated()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var first = await CreateProjectAsync(client, "FyrStudios OAuth", "fyrstudios.com");
+        var second = await CreateProjectAsync(client, "Otro proyecto", "otro.local");
+        _ = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{first.Id}/automations");
+
+        var initial = await client.GetFromJsonAsync<SearchConsoleStatusResponse>($"/api/projects/{first.Id}/integrations/search-console/status");
+        Assert.NotNull(initial);
+        Assert.True(initial.ClientConfigured);
+        Assert.False(initial.Connected);
+
+        var authorizationResponse = await client.PostAsync($"/api/projects/{first.Id}/integrations/search-console/authorize", null);
+        authorizationResponse.EnsureSuccessStatusCode();
+        var authorization = (await authorizationResponse.Content.ReadFromJsonAsync<SearchConsoleAuthorizationResponse>())!;
+        var authorizationUri = new Uri(authorization.AuthorizationUrl);
+        var state = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(authorizationUri.Query)["state"].ToString();
+        Assert.Contains(Uri.EscapeDataString(SearchConsoleService.ReadOnlyScope), authorization.AuthorizationUrl);
+
+        var callback = await client.GetAsync($"/api/integrations/search-console/callback?code=test-code&state={Uri.EscapeDataString(state)}");
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+
+        var connected = await client.GetFromJsonAsync<SearchConsoleStatusResponse>($"/api/projects/{first.Id}/integrations/search-console/status");
+        Assert.True(connected!.Connected);
+        Assert.Equal("sc-domain:fyrstudios.com", connected.Property);
+
+        var syncResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/search_console_sync/run", null);
+        syncResponse.EnsureSuccessStatusCode();
+        var run = (await syncResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("succeeded", run.Status);
+
+        var summary = await client.GetFromJsonAsync<SearchConsoleSummaryResponse>($"/api/projects/{first.Id}/integrations/search-console/summary");
+        Assert.Equal(2, summary!.Rows);
+        Assert.Equal(13, summary.Clicks);
+        Assert.Equal(500, summary.Impressions);
+        Assert.Equal(2, summary.TopQueries.Count);
+
+        var geminiSettings = await client.GetFromJsonAsync<GeminiSettingsResponse>($"/api/projects/{first.Id}/integrations/gemini/settings");
+        Assert.True(geminiSettings!.ApiKeyConfigured);
+        var settingsUpdate = await client.PutAsJsonAsync($"/api/projects/{first.Id}/integrations/gemini/settings",
+            new GeminiSettingsRequest(true, "gemini-test-free", 20, 4, 30, 5, 1, 1, 2, 300, 4096, "Carlos"));
+        settingsUpdate.EnsureSuccessStatusCode();
+
+        var wordPressSettings = await client.GetFromJsonAsync<WordPressSettingsResponse>($"/api/projects/{first.Id}/integrations/wordpress/settings");
+        Assert.True(wordPressSettings!.PasswordConfigured);
+        Assert.Equal("https://fyrstudios.com", wordPressSettings.BaseUrl);
+        var wordPressTest = await client.PostAsync($"/api/projects/{first.Id}/integrations/wordpress/test", null);
+        wordPressTest.EnsureSuccessStatusCode();
+
+        var seoRunResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/seo_content_pipeline/run", null);
+        seoRunResponse.EnsureSuccessStatusCode();
+        var seoRun = (await seoRunResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("succeeded", seoRun.Status);
+        var generatedContent = await client.GetFromJsonAsync<List<ContentPieceResponse>>($"/api/projects/{first.Id}/seo/content");
+        var wordPressDraft = Assert.Single(generatedContent!, item => item.PrimaryKeyword == "diseño web guatemala" && item.Status == "sent_draft" && !item.IsDemoData);
+        Assert.Equal(781, wordPressDraft.WordPressPostId);
+        Assert.Equal("draft", wordPressDraft.WordPressStatus);
+        Assert.Contains("post=781", wordPressDraft.WordPressEditUrl);
+        var idempotentRetry = await client.PostAsync($"/api/projects/{first.Id}/integrations/wordpress/content/{wordPressDraft.Id}/draft", null);
+        idempotentRetry.EnsureSuccessStatusCode();
+        Assert.Equal(1, _factory.Services.GetRequiredService<IWordPressApiClient>() is FakeWordPressApiClient fake ? fake.CreateCalls : -1);
+        var executions = await client.GetFromJsonAsync<List<ExecutionResponse>>($"/api/projects/{first.Id}/operations/executions");
+        Assert.Contains(executions!, item => item.Provider == "gemini" && item.Status == "succeeded" && item.InputUnits == 640 && item.OutputUnits == 980 && item.EstimatedCostUsd == 0);
+        Assert.Contains(executions!, item => item.Provider == "wordpress" && item.Model == "rest-api" && item.Status == "succeeded" && item.EstimatedCostUsd == 0);
+
+        var otherSummary = await client.GetFromJsonAsync<SearchConsoleSummaryResponse>($"/api/projects/{second.Id}/integrations/search-console/summary");
+        Assert.Equal(0, otherSummary!.Rows);
+
+        var invalidDisconnect = await client.SendAsync(new HttpRequestMessage(HttpMethod.Delete,
+            $"/api/projects/{first.Id}/integrations/search-console/connection")
+        {
+            Content = JsonContent.Create(new SearchConsoleDisconnectRequest("DESConectar")),
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalidDisconnect.StatusCode);
+        Assert.True((await client.GetFromJsonAsync<SearchConsoleStatusResponse>($"/api/projects/{first.Id}/integrations/search-console/status"))!.Connected);
+
+        var disconnect = await client.SendAsync(new HttpRequestMessage(HttpMethod.Delete,
+            $"/api/projects/{first.Id}/integrations/search-console/connection")
+        {
+            Content = JsonContent.Create(new SearchConsoleDisconnectRequest("desconectar")),
+        });
+        Assert.Equal(HttpStatusCode.NoContent, disconnect.StatusCode);
+        Assert.False((await client.GetFromJsonAsync<SearchConsoleStatusResponse>($"/api/projects/{first.Id}/integrations/search-console/status"))!.Connected);
+    }
+
+    [Fact]
+    public async Task X_assistant_generates_three_options_and_requires_manual_publication()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var project = await CreateProjectAsync(client, "Conversación X", "fyrstudios.com");
+        _ = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{project.Id}/automations");
+
+        var settings = await client.GetFromJsonAsync<XAssistantSettingsResponse>($"/api/projects/{project.Id}/x-assistant/settings");
+        Assert.NotNull(settings);
+        Assert.True(settings.BearerTokenConfigured);
+        Assert.False(settings.ApiReadEnabled);
+
+        var sourceResponse = await client.PostAsJsonAsync($"/api/projects/{project.Id}/x-assistant/sources", new XSourcePostRequest(
+            "https://x.com/creador/status/1234567890", "creador",
+            "¿Qué debería definirse antes de comenzar el diseño de un sitio web?", "es", 12, 1, 2, 0, 500, DateTimeOffset.UtcNow));
+        sourceResponse.EnsureSuccessStatusCode();
+
+        var runResponse = await client.PostAsync($"/api/projects/{project.Id}/automations/x_response_pipeline/run", null);
+        runResponse.EnsureSuccessStatusCode();
+        var run = (await runResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("succeeded", run.Status);
+        Assert.Equal(0, (_factory.Services.GetRequiredService<IXApiClient>() as FakeXApiClient)!.SearchCalls);
+
+        var proposals = await client.GetFromJsonAsync<List<XReplyProposalResponse>>($"/api/projects/{project.Id}/x-assistant/proposals");
+        var proposal = Assert.Single(proposals!);
+        Assert.Equal("pending_review", proposal.Status);
+        Assert.NotEqual(proposal.RecommendedReply, proposal.AlternativeOne);
+        Assert.NotEqual(proposal.AlternativeOne, proposal.AlternativeTwo);
+        Assert.Contains("utm_source=x", proposal.TrackingUrl);
+        Assert.Contains("Más información:", XAssistantService.BuildReplyText(proposal.RecommendedReply, proposal.TrackingUrl));
+        Assert.Contains("in_reply_to=1234567890", XAssistantService.BuildReplyIntent(proposal.SourceUrl, proposal.RecommendedReply, proposal.TrackingUrl));
+        var notifications = await client.GetFromJsonAsync<List<NotificationResponse>>($"/api/projects/{project.Id}/notifications");
+        var xNotification = Assert.Single(notifications!, item => item.Flow == "x_response_pipeline");
+        Assert.Contains("1️⃣ Recomendada", xNotification.Message);
+        Assert.Contains("Post original:", xNotification.Message);
+        Assert.DoesNotContain("twitter.com/intent/tweet", xNotification.Message);
+        Assert.True(xNotification.Message.Length < 1600);
+
+        var approve = await client.PostAsJsonAsync($"/api/projects/{project.Id}/x-assistant/proposals/{proposal.Id}/transition",
+            new XProposalTransitionRequest("approved", proposal.AlternativeOne, null));
+        approve.EnsureSuccessStatusCode();
+        var copy = await client.PostAsJsonAsync($"/api/projects/{project.Id}/x-assistant/proposals/{proposal.Id}/transition",
+            new XProposalTransitionRequest("copied", proposal.AlternativeOne, null));
+        copy.EnsureSuccessStatusCode();
+        var publish = await client.PostAsJsonAsync($"/api/projects/{project.Id}/x-assistant/proposals/{proposal.Id}/transition",
+            new XProposalTransitionRequest("published", proposal.AlternativeOne, "https://x.com/fyrstudios/status/9876543210"));
+        publish.EnsureSuccessStatusCode();
+        var published = (await publish.Content.ReadFromJsonAsync<XReplyProposalResponse>())!;
+        Assert.Equal("published", published.Status);
+        Assert.Equal("https://x.com/fyrstudios/status/9876543210", published.PublishedReplyUrl);
+
+        var socialPosts = await client.GetFromJsonAsync<List<SocialPostResponse>>($"/api/projects/{project.Id}/marketing/posts");
+        Assert.Contains(socialPosts!, item => item.Platform == "x" && item.Status == "published" && item.DataSource == "manual");
+        var executions = await client.GetFromJsonAsync<List<ExecutionResponse>>($"/api/projects/{project.Id}/operations/executions");
+        Assert.Contains(executions!, item => item.Provider == "gemini" && item.Flow == "x_response_pipeline" && item.Status == "succeeded" && item.InputUnits == 310 && item.OutputUnits == 190);
+    }
+
+    [Fact]
+    public async Task PostHog_sync_is_aggregated_idempotent_and_isolated_by_project()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var first = await CreateProjectAsync(client, "PostHog Alfa", "posthog-alfa.local");
+        var second = await CreateProjectAsync(client, "PostHog Beta", "posthog-beta.local");
+        var baseUrl = $"/api/projects/{first.Id}/integrations/posthog";
+
+        var invalid = await client.PutAsJsonAsync($"{baseUrl}/settings", new PostHogSettingsRequest(
+            "us", 123, "phc_1234567890", "WORDPRESS_APPLICATION_PASSWORD", 7, 5000, true));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        var settings = await client.PutAsJsonAsync($"{baseUrl}/settings", new PostHogSettingsRequest(
+            "us", 123, "phc_1234567890", "POSTHOG_PERSONAL_API_KEY", 7, 5000, true));
+        settings.EnsureSuccessStatusCode();
+        var status = (await settings.Content.ReadFromJsonAsync<PostHogStatusResponse>())!;
+        Assert.True(status.KeyAvailable);
+        Assert.Equal("us", status.Region);
+
+        var campaignResponse = await client.PostAsJsonAsync($"/api/projects/{first.Id}/marketing/campaigns", new CampaignRequest(
+            "Campaña real", "Medir visitas atribuidas", "active", "prueba-7f", null, null));
+        campaignResponse.EnsureSuccessStatusCode();
+        var campaign = (await campaignResponse.Content.ReadFromJsonAsync<CampaignResponse>())!;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fake = (FakePostHogApiClient)_factory.Services.GetRequiredService<IPostHogApiClient>();
+        fake.Rows.AddRange([
+            new(today, "$pageview", "x", "organic", "prueba-7f", "reply-test", "/contacto/", 12, 10),
+            new(today, "fyr_quote_request", "x", "organic", "prueba-7f", "reply-test", "/contacto/", 2, 2),
+            new(today, "fyr_whatsapp_click", "x", "organic", "prueba-7f", "reply-test", "/contacto/", 1, 1),
+            new(today, "$unique_sessions", "", "", "", "", "", 10, 0),
+            new(today, "$utm_sessions", "x", "organic", "prueba-7f", "reply-test", "", 10, 0),
+        ]);
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var runResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/posthog_sync/run", null);
+            runResponse.EnsureSuccessStatusCode();
+            var run = (await runResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+            Assert.Equal("succeeded", run.Status);
+        }
+        Assert.Equal(2, fake.Calls);
+
+        var summary = await client.GetFromJsonAsync<PostHogSummaryResponse>($"{baseUrl}/summary?days=28");
+        Assert.NotNull(summary);
+        Assert.Equal(12, summary.Pageviews);
+        Assert.Equal(10, summary.Sessions);
+        Assert.Equal(2, summary.QuoteRequests);
+        Assert.Equal(1, summary.WhatsAppClicks);
+        var pageview = Assert.Single(summary.Metrics, value => value.Event == "$pageview");
+        Assert.Equal(campaign.Id, pageview.CampaignId);
+        Assert.Equal("reply-test", pageview.Content);
+        var attribution = Assert.Single(summary.Attribution);
+        Assert.Equal(12, attribution.Pageviews);
+        Assert.Equal(10, attribution.Visits);
+        Assert.Equal(2, attribution.QuoteRequests);
+        Assert.Equal(campaign.Id, attribution.CampaignId);
+
+        fake.RecentEvents.Add(new PostHogEventDetailResponse(DateTimeOffset.UtcNow, "$pageview", "/contacto/",
+            "", "", "", "", "", "l.instagram.com", "Microsoft Edge", "Guatemala City",
+            "Guatemala", "Desktop", "Windows", "10"));
+        var recent = await client.GetFromJsonAsync<List<PostHogEventDetailResponse>>($"{baseUrl}/events?days=28");
+        var detail = Assert.Single(recent!);
+        Assert.Equal("instagram", detail.Source);
+        Assert.Equal("referrer", detail.Attribution);
+        Assert.Equal("Microsoft Edge", detail.Browser);
+        Assert.Equal("Guatemala City", detail.City);
+        var invalidFilter = await client.GetAsync($"{baseUrl}/events?source={Uri.EscapeDataString("x' OR 1=1")}");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidFilter.StatusCode);
+
+        var other = await client.GetFromJsonAsync<PostHogSummaryResponse>($"/api/projects/{second.Id}/integrations/posthog/summary");
+        Assert.NotNull(other);
+        Assert.Equal(0, other.Pageviews);
+        Assert.Empty(other.Metrics);
+
+        fake.Failure = new PostHogApiException("POSTHOG_RATE_LIMITED", "Límite de consulta alcanzado.");
+        var failedResponse = await client.PostAsync($"/api/projects/{first.Id}/automations/posthog_sync/run", null);
+        failedResponse.EnsureSuccessStatusCode();
+        var failed = (await failedResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("failed", failed.Status);
+        Assert.Equal("POSTHOG_RATE_LIMITED", failed.ErrorCode);
+        var preserved = await client.GetFromJsonAsync<PostHogSummaryResponse>($"{baseUrl}/summary?days=28");
+        Assert.Equal(12, preserved!.Pageviews);
+        var notifications = await client.GetFromJsonAsync<List<NotificationResponse>>($"/api/projects/{first.Id}/notifications");
+        Assert.Contains(notifications!, value => value.Flow == "posthog_sync" && value.Severity == "critical");
+    }
+
     private static async Task<ProjectResponse> CreateProjectAsync(HttpClient client, string name, string domain)
     {
         var response = await client.PostAsJsonAsync("/api/projects", new ProjectRequest(
@@ -392,6 +700,16 @@ public sealed class ApiIntegrationTests : IDisposable
         SqliteConnection.ClearAllPools();
         Environment.SetEnvironmentVariable("DASHBOARD_ADMIN_PASSWORD", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Dashboard", null);
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_CLIENT_ID", null);
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET", null);
+        Environment.SetEnvironmentVariable("GOOGLE_SEARCH_CONSOLE_REDIRECT_URI", null);
+        Environment.SetEnvironmentVariable("DASHBOARD_WEB_BASE_URL", null);
+        Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
+        Environment.SetEnvironmentVariable("X_BEARER_TOKEN", null);
+        Environment.SetEnvironmentVariable("WORDPRESS_BASE_URL", null);
+        Environment.SetEnvironmentVariable("WORDPRESS_USERNAME", null);
+        Environment.SetEnvironmentVariable("WORDPRESS_APPLICATION_PASSWORD", null);
+        Environment.SetEnvironmentVariable("POSTHOG_PERSONAL_API_KEY", null);
         if (File.Exists(_databasePath)) File.Delete(_databasePath);
         if (File.Exists($"{_databasePath}-shm")) File.Delete($"{_databasePath}-shm");
         if (File.Exists($"{_databasePath}-wal")) File.Delete($"{_databasePath}-wal");

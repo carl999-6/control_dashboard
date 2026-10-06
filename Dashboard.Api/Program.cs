@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+LocalEnvironmentFile.Load(Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".env")));
+builder.Configuration.AddEnvironmentVariables();
 var dataProtectionDirectory = Path.Combine(builder.Environment.ContentRootPath, "Data", "keys");
 Directory.CreateDirectory(dataProtectionDirectory);
 
@@ -76,7 +78,26 @@ if (string.IsNullOrWhiteSpace(configuredPassword) && !builder.Environment.IsDeve
 }
 
 builder.Services.AddSingleton(new LocalAdminPasswordVerifier(configuredPassword ?? "control-local-2026"));
-builder.Services.AddSingleton<INotificationChannel, SimulatedTelegramChannel>();
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddSingleton<INotificationChannel, SimulatedTelegramChannel>();
+}
+else
+{
+    builder.Services.AddSingleton<INotificationChannel, ConfigurableTelegramChannel>();
+}
+builder.Services.AddScoped<AutomationExecutor>();
+builder.Services.AddScoped<SearchConsoleService>();
+builder.Services.AddSingleton<ISearchConsoleApiClient, GoogleSearchConsoleApiClient>();
+builder.Services.AddScoped<GeminiSeoService>();
+builder.Services.AddSingleton<IGeminiApiClient, GeminiApiClient>();
+builder.Services.AddScoped<WordPressService>();
+builder.Services.AddSingleton<IWordPressApiClient, WordPressApiClient>();
+builder.Services.AddScoped<XAssistantService>();
+builder.Services.AddSingleton<IXApiClient, XApiClient>();
+builder.Services.AddScoped<PostHogService>();
+builder.Services.AddSingleton<IPostHogApiClient, PostHogApiClient>();
+builder.Services.AddHostedService<AutomationWorker>();
 
 var app = builder.Build();
 
@@ -254,6 +275,12 @@ app.MapMarketingEndpoints();
 app.MapSeoEndpoints();
 app.MapExecutionEndpoints();
 app.MapNotificationEndpoints();
+app.MapAutomationEndpoints();
+app.MapSearchConsoleEndpoints();
+app.MapGeminiEndpoints();
+app.MapWordPressEndpoints();
+app.MapXAssistantEndpoints();
+app.MapPostHogEndpoints();
 
 app.Run();
 

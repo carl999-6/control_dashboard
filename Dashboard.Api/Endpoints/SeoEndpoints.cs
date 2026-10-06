@@ -161,23 +161,6 @@ public static class SeoEndpoints
             return Results.Ok(ContentPieceResponse.FromEntity(item));
         });
 
-        seo.MapPost("/content/{contentId:guid}/simulate-wordpress-draft", async (Guid projectId, Guid contentId, DashboardDbContext db, CancellationToken ct) =>
-        {
-            var item = await db.ContentPieces.Include(value => value.History)
-                .SingleOrDefaultAsync(value => value.ProjectId == projectId && value.Id == contentId, ct);
-            if (item is null) return Results.NotFound();
-            if (item.Status is not ("approved" or "scheduled"))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Solo una pieza aprobada o programada puede simularse como borrador de WordPress."] });
-            if (string.IsNullOrWhiteSpace(item.DraftMarkdown))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["draftMarkdown"] = ["Agrega un borrador antes de simular el envío."] });
-            var now = DateTimeOffset.UtcNow; var previous = item.Status;
-            item.Status = "sent_draft"; item.UpdatedAt = now;
-            item.SimulatedWordPressUrl = $"https://wordpress.local/wp-admin/post.php?post={item.Id:N}&action=edit";
-            db.EditorialHistory.Add(CreateHistory(projectId, item.Id, previous, "sent_draft", "Envío simulado; no se realizó ninguna solicitud externa.", now));
-            await db.SaveChangesAsync(ct);
-            return Results.Ok(ContentPieceResponse.FromEntity(item));
-        });
-
         seo.MapPut("/content/{contentId:guid}/measurement", async (Guid projectId, Guid contentId, ContentMeasurementRequest request, DashboardDbContext db, CancellationToken ct) =>
         {
             var item = await db.ContentPieces.Include(value => value.History)

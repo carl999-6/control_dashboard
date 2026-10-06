@@ -31,7 +31,13 @@ public sealed record DispatchNotificationRequest(
     string Severity,
     string Title,
     string Message,
-    bool SimulateFailure);
+    bool SimulateFailure,
+    string Flow = "",
+    string Provider = "",
+    string Model = "",
+    long? InputUnits = null,
+    long? OutputUnits = null,
+    decimal? EstimatedCostUsd = null);
 
 public sealed record NotificationResponse(
     Guid Id,
@@ -41,6 +47,12 @@ public sealed record NotificationResponse(
     string Severity,
     string Title,
     string Message,
+    string Flow,
+    string Provider,
+    string Model,
+    long? InputUnits,
+    long? OutputUnits,
+    decimal? EstimatedCostUsd,
     string Status,
     int GroupCount,
     int AttemptCount,
@@ -54,7 +66,8 @@ public sealed record NotificationResponse(
 {
     public static NotificationResponse FromEntity(NotificationRecord item) => new(
         item.Id, item.ProjectId, item.DeduplicationKey, item.Category, item.Severity,
-        item.Title, item.Message, item.Status, item.GroupCount, item.AttemptCount,
+        item.Title, item.Message, item.Flow, item.Provider, item.Model, item.InputUnits,
+        item.OutputUnits, item.EstimatedCostUsd, item.Status, item.GroupCount, item.AttemptCount,
         item.SimulateFailure, item.ErrorMessage, item.IsDemoData, item.CreatedAt,
         item.UpdatedAt, item.LastAttemptAt, item.DeliveredAt);
 }

@@ -6,5 +6,6 @@ public sealed record NotificationDeliveryResult(bool Delivered, string ErrorMess
 
 public interface INotificationChannel
 {
-    Task<NotificationDeliveryResult> DeliverAsync(NotificationRecord notification, CancellationToken cancellationToken);
+    string Mode { get; }
+    Task<NotificationDeliveryResult> DeliverAsync(NotificationRecord notification, string projectName, CancellationToken cancellationToken);
 }

@@ -107,6 +107,64 @@ export type MarketingSummary = {
   containsDemoData: boolean
 }
 
+export type PostHogStatus = {
+  isConfigured: boolean
+  keyAvailable: boolean
+  isEnabled: boolean
+  region: 'us' | 'eu'
+  externalProjectId: number
+  publicToken: string
+  apiKeyEnvironmentVariable: string
+  lookbackDays: number
+  rowLimit: number
+  lastSyncAt: string | null
+  lastError: string
+}
+
+export type PostHogSettingsInput = Pick<PostHogStatus, 'region' | 'externalProjectId' | 'publicToken' | 'apiKeyEnvironmentVariable' | 'lookbackDays' | 'rowLimit' | 'isEnabled'> & { confirmReplaceData?: boolean }
+
+export type PostHogMetric = {
+  date: string
+  event: string
+  source: string
+  medium: string
+  campaign: string
+  content: string
+  path: string
+  eventCount: number
+  sessions: number
+  xReplyProposalId: string | null
+  campaignId: string | null
+}
+
+export type PostHogSummary = {
+  pageviews: number
+  sessions: number
+  quoteRequests: number
+  whatsAppClicks: number
+  metrics: PostHogMetric[]
+  attribution: { source: string; campaign: string; content: string; visits: number; pageviews: number; quoteRequests: number; whatsAppClicks: number; xReplyProposalId: string | null; campaignId: string | null }[]
+  lastSyncAt: string | null
+}
+
+export type PostHogEventDetail = {
+  occurredAt: string
+  event: string
+  path: string
+  source: string
+  medium: string
+  campaign: string
+  content: string
+  attribution: 'utm' | 'referrer' | 'direct' | 'unknown'
+  referrerDomain: string
+  browser: string
+  city: string
+  country: string
+  deviceType: string
+  os: string
+  osVersion: string
+}
+
 export type SeoOpportunity = {
   id: string
   projectId: string
@@ -157,7 +215,10 @@ export type ContentPiece = {
   resultImpressions: number | null
   resultClicks: number | null
   resultNotes: string
-  simulatedWordPressUrl: string
+  wordPressEditUrl: string
+  wordPressPostId: number | null
+  wordPressStatus: string
+  wordPressDraftCreatedAt: string | null
   isDemoData: boolean
   createdAt: string
   updatedAt: string
@@ -277,6 +338,12 @@ export type NotificationRecord = {
   severity: string
   title: string
   message: string
+  flow: string
+  provider: string
+  model: string
+  inputUnits: number | null
+  outputUnits: number | null
+  estimatedCostUsd: number | null
   status: string
   groupCount: number
   attemptCount: number
@@ -290,6 +357,152 @@ export type NotificationRecord = {
 }
 
 export type DispatchNotificationInput = Pick<NotificationRecord, 'deduplicationKey' | 'category' | 'severity' | 'title' | 'message' | 'simulateFailure'>
+
+export type AutomationSchedule = {
+  id: string
+  projectId: string
+  workflow: string
+  displayName: string
+  isEnabled: boolean
+  frequency: string
+  intervalMinutes: number | null
+  localTime: string
+  dayOfWeek: number | null
+  maxRunsPerDay: number
+  nextRunAt: string | null
+  lastRunAt: string | null
+  updatedAt: string
+}
+
+export type AutomationScheduleInput = Pick<AutomationSchedule, 'isEnabled' | 'frequency' | 'intervalMinutes' | 'localTime' | 'dayOfWeek' | 'maxRunsPerDay'>
+
+export type AutomationRun = {
+  id: string
+  projectId: string
+  automationScheduleId: string
+  trigger: string
+  status: string
+  errorCode: string
+  errorMessage: string
+  createdAt: string
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export type SearchConsoleStatus = {
+  clientConfigured: boolean
+  connected: boolean
+  status: string
+  property: string
+  permissionLevel: string
+  lookbackDays: number
+  rowLimit: number
+  lastSyncAt: string | null
+  lastError: string
+}
+
+export type SearchConsoleSummary = {
+  rows: number
+  clicks: number
+  impressions: number
+  ctr: number
+  averagePosition: number
+  startDate: string | null
+  endDate: string | null
+  topQueries: { query: string; page: string; clicks: number; impressions: number; ctr: number; position: number }[]
+}
+
+export type GeminiSettings = {
+  apiKeyConfigured: boolean
+  isEnabled: boolean
+  model: string
+  minimumImpressions: number
+  minimumPosition: number
+  maximumPosition: number
+  maximumCtrPercent: number
+  maximumSeoDraftsPerDay: number
+  maximumXProposalsPerDay: number
+  maximumTotalGeminiRunsPerDay: number
+  minimumDraftWords: number
+  maximumOutputTokens: number
+  owner: string
+  draftsGeneratedToday: number
+  xProposalsGeneratedToday: number
+  totalGeminiRunsToday: number
+  updatedAt: string | null
+}
+
+export type GeminiSettingsInput = Omit<GeminiSettings, 'apiKeyConfigured' | 'draftsGeneratedToday' | 'xProposalsGeneratedToday' | 'totalGeminiRunsToday' | 'updatedAt'>
+
+export type XAssistantSettings = {
+  isEnabled: boolean
+  apiReadEnabled: boolean
+  bearerTokenConfigured: boolean
+  searchQuery: string
+  language: string
+  maximumPostsPerSync: number
+  readCostUsdPerPost: number
+  maximumSyncCostUsd: number
+  toneInstructions: string
+  landingPath: string
+  utmCampaign: string
+  lastSyncAt: string | null
+  lastError: string
+}
+
+export type XAssistantSettingsInput = Pick<XAssistantSettings, 'isEnabled' | 'apiReadEnabled' | 'searchQuery' | 'language' | 'maximumPostsPerSync' | 'readCostUsdPerPost' | 'toneInstructions' | 'landingPath' | 'utmCampaign'>
+
+export type XSourcePost = {
+  id: string
+  externalPostId: string
+  url: string
+  authorUsername: string
+  text: string
+  language: string
+  likeCount: number
+  replyCount: number
+  repostCount: number
+  quoteCount: number
+  impressionCount: number
+  status: string
+  dataSource: string
+  postedAt: string
+  importedAt: string
+}
+
+export type XSourcePostInput = Pick<XSourcePost, 'url' | 'authorUsername' | 'text' | 'language' | 'likeCount' | 'replyCount' | 'repostCount' | 'quoteCount' | 'impressionCount'> & { postedAt: string | null }
+
+export type XReplyProposal = {
+  id: string
+  xSourcePostId: string
+  sourceUrl: string
+  sourceAuthor: string
+  sourceText: string
+  recommendedReply: string
+  alternativeOne: string
+  alternativeTwo: string
+  selectedReply: string
+  rationale: string
+  riskNotes: string
+  status: string
+  publishedReplyUrl: string
+  trackingUrl: string
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type WordPressSettings = {
+  isEnabled: boolean
+  passwordConfigured: boolean
+  baseUrl: string
+  username: string
+  status: string
+  lastCheckedAt: string | null
+  lastError: string
+}
+
+export type WordPressSettingsInput = Pick<WordPressSettings, 'isEnabled' | 'baseUrl' | 'username'>
 
 export type NotificationSummary = {
   delivered: number
@@ -324,7 +537,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       const payload = await response.json()
       const errors = payload.errors as Record<string, string[]> | undefined
-      message = errors ? Object.values(errors).flat()[0] : payload.title ?? message
+      message = errors ? Object.values(errors).flat()[0] : payload.detail ?? payload.title ?? message
     } catch {
       // La respuesta puede no incluir JSON en errores de infraestructura.
     }
@@ -357,6 +570,16 @@ export const api = {
   updateSocialPost: (projectId: string, postId: string, post: SocialPostInput) => request<SocialPost>(`/api/projects/${projectId}/marketing/posts/${postId}`, { method: 'PUT', body: JSON.stringify(post) }),
   deleteSocialPost: (projectId: string, postId: string) => request<void>(`/api/projects/${projectId}/marketing/posts/${postId}`, { method: 'DELETE' }),
   getMarketingSummary: (projectId: string) => request<MarketingSummary>(`/api/projects/${projectId}/marketing/summary`),
+  getPostHogStatus: (projectId: string) => request<PostHogStatus>(`/api/projects/${projectId}/integrations/posthog/status`),
+  updatePostHogSettings: (projectId: string, settings: PostHogSettingsInput) => request<PostHogStatus>(`/api/projects/${projectId}/integrations/posthog/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+  getPostHogSummary: (projectId: string, days = 28) => request<PostHogSummary>(`/api/projects/${projectId}/integrations/posthog/summary?days=${days}`),
+  getPostHogEvents: (projectId: string, days: number, filters: { source?: string; campaign?: string; content?: string } = {}) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (filters.source) params.set('source', filters.source)
+    if (filters.campaign) params.set('campaign', filters.campaign)
+    if (filters.content) params.set('content', filters.content)
+    return request<PostHogEventDetail[]>(`/api/projects/${projectId}/integrations/posthog/events?${params}`)
+  },
   importMarketingEvents: (projectId: string, events: MarketingEventInput[]) => request<{ imported: number; totalCount: number }>(`/api/projects/${projectId}/marketing/events/import`, { method: 'POST', body: JSON.stringify({ events }) }),
   getSeoOpportunities: (projectId: string) => request<SeoOpportunity[]>(`/api/projects/${projectId}/seo/opportunities`),
   createSeoOpportunity: (projectId: string, item: SeoOpportunityInput) => request<SeoOpportunity>(`/api/projects/${projectId}/seo/opportunities`, { method: 'POST', body: JSON.stringify(item) }),
@@ -367,7 +590,7 @@ export const api = {
   updateContentPiece: (projectId: string, itemId: string, item: ContentPieceInput) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}`, { method: 'PUT', body: JSON.stringify(item) }),
   deleteContentPiece: (projectId: string, itemId: string) => request<void>(`/api/projects/${projectId}/seo/content/${itemId}`, { method: 'DELETE' }),
   transitionContentPiece: (projectId: string, itemId: string, targetStatus: string, note: string, scheduledFor: string | null = null) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/transition`, { method: 'POST', body: JSON.stringify({ targetStatus, note, scheduledFor }) }),
-  simulateWordPressDraft: (projectId: string, itemId: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/simulate-wordpress-draft`, { method: 'POST' }),
+  sendWordPressDraft: (projectId: string, itemId: string) => request<ContentPiece>(`/api/projects/${projectId}/integrations/wordpress/content/${itemId}/draft`, { method: 'POST' }),
   measureContentPiece: (projectId: string, itemId: string, impressions: number, clicks: number, notes: string) => request<ContentPiece>(`/api/projects/${projectId}/seo/content/${itemId}/measurement`, { method: 'PUT', body: JSON.stringify({ impressions, clicks, notes, measuredAt: null }) }),
   getSeoSummary: (projectId: string) => request<SeoSummary>(`/api/projects/${projectId}/seo/summary`),
   getRatePlans: (projectId: string) => request<RatePlan[]>(`/api/projects/${projectId}/operations/rates`),
@@ -388,4 +611,25 @@ export const api = {
   dispatchNotification: (projectId: string, item: DispatchNotificationInput) => request<NotificationRecord>(`/api/projects/${projectId}/notifications/dispatch`, { method: 'POST', body: JSON.stringify(item) }),
   retryNotification: (projectId: string, notificationId: string) => request<NotificationRecord>(`/api/projects/${projectId}/notifications/${notificationId}/retry`, { method: 'POST' }),
   processQueuedNotifications: (projectId: string) => request<NotificationRecord[]>(`/api/projects/${projectId}/notifications/process-queued`, { method: 'POST' }),
+  getAutomationSchedules: (projectId: string) => request<AutomationSchedule[]>(`/api/projects/${projectId}/automations`),
+  updateAutomationSchedule: (projectId: string, workflow: string, item: AutomationScheduleInput) => request<AutomationSchedule>(`/api/projects/${projectId}/automations/${workflow}`, { method: 'PUT', body: JSON.stringify(item) }),
+  getAutomationRuns: (projectId: string) => request<AutomationRun[]>(`/api/projects/${projectId}/automations/runs`),
+  runAutomation: (projectId: string, workflow: string) => request<AutomationRun>(`/api/projects/${projectId}/automations/${workflow}/run`, { method: 'POST' }),
+  getSearchConsoleStatus: (projectId: string) => request<SearchConsoleStatus>(`/api/projects/${projectId}/integrations/search-console/status`),
+  authorizeSearchConsole: (projectId: string) => request<{ authorizationUrl: string }>(`/api/projects/${projectId}/integrations/search-console/authorize`, { method: 'POST' }),
+  updateSearchConsoleSettings: (projectId: string, lookbackDays: number, rowLimit: number) => request<SearchConsoleStatus>(`/api/projects/${projectId}/integrations/search-console/settings`, { method: 'PUT', body: JSON.stringify({ lookbackDays, rowLimit }) }),
+  getSearchConsoleSummary: (projectId: string) => request<SearchConsoleSummary>(`/api/projects/${projectId}/integrations/search-console/summary`),
+  disconnectSearchConsole: (projectId: string, confirmation: string) => request<void>(`/api/projects/${projectId}/integrations/search-console/connection`, { method: 'DELETE', body: JSON.stringify({ confirmation }) }),
+  getGeminiSettings: (projectId: string) => request<GeminiSettings>(`/api/projects/${projectId}/integrations/gemini/settings`),
+  updateGeminiSettings: (projectId: string, settings: GeminiSettingsInput) => request<GeminiSettings>(`/api/projects/${projectId}/integrations/gemini/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+  getWordPressSettings: (projectId: string) => request<WordPressSettings>(`/api/projects/${projectId}/integrations/wordpress/settings`),
+  updateWordPressSettings: (projectId: string, settings: WordPressSettingsInput) => request<WordPressSettings>(`/api/projects/${projectId}/integrations/wordpress/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+  testWordPressConnection: (projectId: string) => request<{ succeeded: boolean; status: string; message: string }>(`/api/projects/${projectId}/integrations/wordpress/test`, { method: 'POST' }),
+  getXAssistantSettings: (projectId: string) => request<XAssistantSettings>(`/api/projects/${projectId}/x-assistant/settings`),
+  updateXAssistantSettings: (projectId: string, settings: XAssistantSettingsInput) => request<XAssistantSettings>(`/api/projects/${projectId}/x-assistant/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+  getXSources: (projectId: string) => request<XSourcePost[]>(`/api/projects/${projectId}/x-assistant/sources`),
+  importXSource: (projectId: string, item: XSourcePostInput) => request<XSourcePost>(`/api/projects/${projectId}/x-assistant/sources`, { method: 'POST', body: JSON.stringify(item) }),
+  dismissXSource: (projectId: string, sourceId: string) => request<XSourcePost>(`/api/projects/${projectId}/x-assistant/sources/${sourceId}/dismiss`, { method: 'POST' }),
+  getXProposals: (projectId: string) => request<XReplyProposal[]>(`/api/projects/${projectId}/x-assistant/proposals`),
+  transitionXProposal: (projectId: string, proposalId: string, targetStatus: string, selectedReply: string, publishedReplyUrl = '') => request<XReplyProposal>(`/api/projects/${projectId}/x-assistant/proposals/${proposalId}/transition`, { method: 'POST', body: JSON.stringify({ targetStatus, selectedReply, publishedReplyUrl }) }),
 }

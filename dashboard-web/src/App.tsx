@@ -80,7 +80,7 @@ const moduleDetails: Record<string, { title: string; description: string; icon: 
   },
   '/automatizaciones': {
     title: 'Automatizaciones',
-    description: 'Alertas configurables, entregas simuladas y recuperación de fallos.',
+    description: 'Programaciones locales, ejecución manual, alertas por Telegram e historial de fallos.',
     icon: Zap,
   },
   '/costos': {

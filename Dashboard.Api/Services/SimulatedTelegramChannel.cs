@@ -4,7 +4,9 @@ namespace Dashboard.Api.Services;
 
 public sealed class SimulatedTelegramChannel : INotificationChannel
 {
-    public Task<NotificationDeliveryResult> DeliverAsync(NotificationRecord notification, CancellationToken cancellationToken)
+    public string Mode => "simulated";
+
+    public Task<NotificationDeliveryResult> DeliverAsync(NotificationRecord notification, string projectName, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(notification.SimulateFailure

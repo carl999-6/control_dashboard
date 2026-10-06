@@ -19,18 +19,21 @@ public static class NotificationEndpoints
     {
         var notifications = app.MapGroup("/api/projects/{projectId:guid}/notifications").RequireAuthorization();
 
-        notifications.MapGet("/policy", async (Guid projectId, DashboardDbContext db, CancellationToken ct) =>
+        notifications.MapGet("/policy", async (Guid projectId, DashboardDbContext db, INotificationChannel channel, CancellationToken ct) =>
         {
             if (!await ProjectExists(projectId, db, ct)) return Results.NotFound();
-            return Results.Ok(NotificationPolicyResponse.FromEntity(await GetOrCreatePolicy(projectId, db, ct)));
+            var policy = await GetOrCreatePolicy(projectId, db, ct);
+            await UpdateDeliveryMode(policy, channel.Mode, db, ct);
+            return Results.Ok(NotificationPolicyResponse.FromEntity(policy));
         });
 
-        notifications.MapPut("/policy", async (Guid projectId, NotificationPolicyRequest request, DashboardDbContext db, CancellationToken ct) =>
+        notifications.MapPut("/policy", async (Guid projectId, NotificationPolicyRequest request, DashboardDbContext db, INotificationChannel channel, CancellationToken ct) =>
         {
             var errors = ValidatePolicy(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!await ProjectExists(projectId, db, ct)) return Results.NotFound();
             var policy = await GetOrCreatePolicy(projectId, db, ct);
+            policy.DeliveryMode = channel.Mode;
             policy.IsEnabled = request.IsEnabled;
             policy.MinimumSeverity = request.MinimumSeverity.Trim().ToLowerInvariant();
             policy.GroupWindowMinutes = request.GroupWindowMinutes;
@@ -64,6 +67,7 @@ public static class NotificationEndpoints
             var errors = ValidateDispatch(request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!await ProjectExists(projectId, db, ct)) return Results.NotFound();
+            var projectName = await GetProjectName(projectId, db, ct);
 
             var gate = ProjectLocks.GetOrAdd(projectId, _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(ct);
@@ -88,9 +92,12 @@ public static class NotificationEndpoints
                 {
                     Id = Guid.NewGuid(), ProjectId = projectId, NotificationPolicyId = policy.Id,
                     DeduplicationKey = key, Category = request.Category.Trim().ToLowerInvariant(), Severity = request.Severity.Trim().ToLowerInvariant(),
-                    Title = request.Title.Trim(), Message = request.Message.Trim(), Status = "queued", GroupCount = 1,
+                    Title = request.Title.Trim(), Message = request.Message.Trim(), Flow = request.Flow.Trim(),
+                    Provider = request.Provider.Trim(), Model = request.Model.Trim(), InputUnits = request.InputUnits,
+                    OutputUnits = request.OutputUnits, EstimatedCostUsd = request.EstimatedCostUsd,
+                    Status = "queued", GroupCount = 1,
                     AttemptCount = 0, SimulateFailure = request.SimulateFailure, ErrorMessage = string.Empty,
-                    IsDemoData = true, CreatedAt = now, UpdatedAt = now,
+                    IsDemoData = channel.Mode != "telegram", CreatedAt = now, UpdatedAt = now,
                 };
                 if (!policy.IsEnabled)
                 {
@@ -109,7 +116,7 @@ public static class NotificationEndpoints
                 }
                 else
                 {
-                    await Deliver(item, channel, ct);
+                    await Deliver(item, projectName, channel, ct);
                 }
                 db.Notifications.Add(item);
                 await db.SaveChangesAsync(ct);
@@ -124,7 +131,7 @@ public static class NotificationEndpoints
             if (item is null) return Results.NotFound();
             if (item.Status is not ("failed" or "queued")) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Solo se pueden recuperar notificaciones fallidas o en cola."] });
             item.SimulateFailure = false;
-            await Deliver(item, channel, ct);
+            await Deliver(item, await GetProjectName(projectId, db, ct), channel, ct);
             await db.SaveChangesAsync(ct);
             return Results.Ok(NotificationResponse.FromEntity(item));
         });
@@ -135,7 +142,8 @@ public static class NotificationEndpoints
             var policy = await GetOrCreatePolicy(projectId, db, ct);
             if (await IsQuietHour(projectId, policy, db, ct)) return Results.Ok(Array.Empty<NotificationResponse>());
             var queued = await db.Notifications.Where(item => item.ProjectId == projectId && item.Status == "queued").ToListAsync(ct);
-            foreach (var item in queued) await Deliver(item, channel, ct);
+            var projectName = await GetProjectName(projectId, db, ct);
+            foreach (var item in queued) await Deliver(item, projectName, channel, ct);
             await db.SaveChangesAsync(ct);
             return Results.Ok(queued.Select(NotificationResponse.FromEntity));
         });
@@ -143,11 +151,11 @@ public static class NotificationEndpoints
         return app;
     }
 
-    private static async Task Deliver(NotificationRecord item, INotificationChannel channel, CancellationToken ct)
+    private static async Task Deliver(NotificationRecord item, string projectName, INotificationChannel channel, CancellationToken ct)
     {
         item.AttemptCount++;
         item.LastAttemptAt = DateTimeOffset.UtcNow;
-        var result = await channel.DeliverAsync(item, ct);
+        var result = await channel.DeliverAsync(item, projectName, ct);
         item.UpdatedAt = item.LastAttemptAt.Value;
         item.Status = result.Delivered ? "sent" : "failed";
         item.DeliveredAt = result.Delivered ? item.LastAttemptAt : null;
@@ -186,6 +194,17 @@ public static class NotificationEndpoints
     private static async Task<bool> ProjectExists(Guid projectId, DashboardDbContext db, CancellationToken ct) =>
         await db.Projects.AnyAsync(item => item.Id == projectId, ct);
 
+    private static async Task<string> GetProjectName(Guid projectId, DashboardDbContext db, CancellationToken ct) =>
+        await db.Projects.AsNoTracking().Where(item => item.Id == projectId).Select(item => item.Name).SingleAsync(ct);
+
+    private static async Task UpdateDeliveryMode(NotificationPolicy policy, string mode, DashboardDbContext db, CancellationToken ct)
+    {
+        if (policy.DeliveryMode == mode) return;
+        policy.DeliveryMode = mode;
+        policy.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
     private static Dictionary<string, string[]> ValidatePolicy(NotificationPolicyRequest request)
     {
         var errors = new Dictionary<string, string[]>();
@@ -203,6 +222,10 @@ public static class NotificationEndpoints
         if (!SeverityRank.ContainsKey(request.Severity.Trim())) errors["severity"] = ["La severidad debe ser info, warning o critical."];
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 180) errors["title"] = ["El título es obligatorio y admite hasta 180 caracteres."];
         if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Trim().Length > 1200) errors["message"] = ["El mensaje es obligatorio y admite hasta 1200 caracteres."];
+        if (request.Flow.Length > 100) errors["flow"] = ["El flujo admite hasta 100 caracteres."];
+        if (request.Provider.Length > 80) errors["provider"] = ["El proveedor admite hasta 80 caracteres."];
+        if (request.Model.Length > 120) errors["model"] = ["El modelo admite hasta 120 caracteres."];
+        if (request.InputUnits < 0 || request.OutputUnits < 0 || request.EstimatedCostUsd < 0) errors["usage"] = ["El consumo y el costo no pueden ser negativos."];
         return errors;
     }
 }

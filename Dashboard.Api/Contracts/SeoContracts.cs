@@ -86,7 +86,10 @@ public sealed record ContentPieceResponse(
     int? ResultImpressions,
     int? ResultClicks,
     string ResultNotes,
-    string SimulatedWordPressUrl,
+    string WordPressEditUrl,
+    int? WordPressPostId,
+    string WordPressStatus,
+    DateTimeOffset? WordPressDraftCreatedAt,
     bool IsDemoData,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
@@ -97,7 +100,8 @@ public sealed record ContentPieceResponse(
         item.PrimaryKeyword, item.SearchIntent, item.Hypothesis, item.BaselineSummary, item.Objective,
         item.Owner, item.Brief, item.DraftMarkdown, item.MetaTitle, item.MetaDescription, item.Status,
         item.ScheduledFor, item.MeasuredAt, item.ResultImpressions, item.ResultClicks, item.ResultNotes,
-        item.SimulatedWordPressUrl, item.IsDemoData, item.CreatedAt, item.UpdatedAt,
+        item.SimulatedWordPressUrl, item.WordPressPostId, item.WordPressStatus, item.WordPressDraftCreatedAt,
+        item.IsDemoData, item.CreatedAt, item.UpdatedAt,
         item.History.OrderByDescending(entry => entry.ChangedAt).Select(EditorialHistoryResponse.FromEntity).ToList());
 }
 
