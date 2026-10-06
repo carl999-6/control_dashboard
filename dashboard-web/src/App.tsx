@@ -20,6 +20,8 @@ import {
   Menu,
   MessageSquareText,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings,
   ShieldCheck,
@@ -157,6 +159,7 @@ function App() {
 
 function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('dashboard.sidebarCollapsed') === 'true')
   const [selectedProjectId, setSelectedProjectId] = useState('all')
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsError, setProjectsError] = useState('')
@@ -186,19 +189,29 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
     onLoggedOut()
   }
 
+  function toggleSidebar() {
+    setSidebarCollapsed((collapsed) => {
+      localStorage.setItem('dashboard.sidebarCollapsed', String(!collapsed))
+      return !collapsed
+    })
+  }
+
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''}`}>
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''} ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}>
         <div className="brand">
           <div className="brand__mark" aria-hidden="true">
             <span />
             <span />
             <span />
           </div>
-          <div>
+          <div className="brand__copy">
             <strong>CONTROL</strong>
             <small>Centro de proyectos</small>
           </div>
+          <button className="icon-button sidebar__collapse" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expandir menú' : 'Contraer menú'} title={sidebarCollapsed ? 'Expandir menú' : 'Contraer menú'}>
+            {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>
           <button className="icon-button sidebar__close" onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú">
             <X size={18} />
           </button>
@@ -219,7 +232,7 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
         <nav className="navigation" aria-label="Navegación principal">
           <span className="navigation__label">MENÚ</span>
           {navigation.map((item) => (
-            <NavLink key={item.path} to={item.path} end={item.path === '/'}>
+            <NavLink key={item.path} to={item.path} end={item.path === '/'} title={sidebarCollapsed ? item.label : undefined}>
               <item.icon size={18} strokeWidth={1.8} />
               <span>{item.label}</span>
               {item.path === '/automatizaciones' && <span className="nav-count">3</span>}
@@ -228,7 +241,7 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
         </nav>
 
         <div className="sidebar__footer">
-          <NavLink to="/ajustes" className="settings-link">
+          <NavLink to="/ajustes" className="settings-link" title={sidebarCollapsed ? 'Ajustes' : undefined}>
             <Settings size={18} />
             <span>Ajustes</span>
           </NavLink>
@@ -245,7 +258,7 @@ function DashboardShell({ onLoggedOut }: { onLoggedOut: () => void }) {
 
       {sidebarOpen && <button className="sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú" />}
 
-      <div className="workspace">
+      <div className={`workspace ${sidebarCollapsed ? 'workspace--expanded' : ''}`}>
         <header className="topbar">
           <div className="topbar__left">
             <button className="icon-button mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">

@@ -83,33 +83,51 @@ public sealed class GeminiSeoService(DashboardDbContext db, IGeminiApiClient api
         if (allGeminiToday >= settings.MaximumTotalGeminiRunsPerDay)
             return Failed("GEMINI_SHARED_DAILY_LIMIT", "Se alcanzó el límite diario compartido entre SEO y propuestas para X.", settings.Model);
 
-        var metrics = await db.SearchConsoleMetrics.AsNoTracking().Where(item => item.ProjectId == projectId).ToListAsync(cancellationToken);
-        if (metrics.Count == 0) return Failed("NO_SEARCH_CONSOLE_DATA", "Search Console todavía no tiene métricas para detectar oportunidades.", settings.Model);
-
         var opportunities = await db.SeoOpportunities.Where(item => item.ProjectId == projectId).ToListAsync(cancellationToken);
         var content = await db.ContentPieces.AsNoTracking().Where(item => item.ProjectId == projectId).ToListAsync(cancellationToken);
-        var candidates = metrics.Where(item => !string.IsNullOrWhiteSpace(item.Query))
-            .GroupBy(item => new { item.Query, item.Page })
-            .Select(group =>
-            {
-                var impressions = group.Sum(item => item.Impressions);
-                var clicks = group.Sum(item => item.Clicks);
-                var position = impressions == 0 ? group.Average(item => item.Position) : group.Sum(item => item.Position * item.Impressions) / impressions;
-                return new Candidate(group.Key.Query.Trim(), group.Key.Page.Trim(), impressions, clicks,
-                    impressions == 0 ? 0 : clicks / impressions, position);
-            })
-            .Where(item => item.Impressions >= settings.MinimumImpressions && item.Position >= settings.MinimumPosition &&
-                item.Position <= settings.MaximumPosition && item.Ctr <= settings.MaximumCtr)
-            .OrderByDescending(item => item.Impressions)
-            .ThenBy(item => item.Position)
-            .ToList();
+        var opportunity = opportunities
+            .Where(item => item.DataSource == "manual" && item.Status == "selected")
+            .Where(item => !content.Any(piece => piece.SeoOpportunityId == item.Id) && !HasContentDuplicate(item.Query, content))
+            .OrderBy(item => item.UpdatedAt)
+            .FirstOrDefault();
+        Candidate candidate;
 
-        var candidate = candidates.FirstOrDefault(item => !HasContentDuplicate(item.Query, content));
-        if (candidate is null) return Failed("NO_ELIGIBLE_SEO_OPPORTUNITY", "No hay oportunidades nuevas que superen los umbrales y la comprobación de duplicados.", settings.Model);
+        if (opportunity is not null)
+        {
+            var impressions = opportunity.BaselineImpressions;
+            var clicks = opportunity.BaselineClicks;
+            candidate = new Candidate(opportunity.Query.Trim(), opportunity.TargetPage.Trim(), impressions, clicks,
+                impressions == 0 ? 0 : (double)clicks / impressions, 0);
+        }
+        else
+        {
+            var metrics = await db.SearchConsoleMetrics.AsNoTracking().Where(item => item.ProjectId == projectId).ToListAsync(cancellationToken);
+            if (metrics.Count == 0) return Failed("NO_SEARCH_CONSOLE_DATA", "Search Console todavía no tiene métricas y no hay una oportunidad manual seleccionada para generar el borrador.", settings.Model);
 
-        var opportunity = opportunities.FirstOrDefault(item => Normalize(item.Query) == Normalize(candidate.Query));
-        if (opportunity is not null && content.Any(item => item.SeoOpportunityId == opportunity.Id))
-            return Failed("NO_ELIGIBLE_SEO_OPPORTUNITY", "La oportunidad disponible ya tiene una pieza editorial asociada.", settings.Model);
+            var candidates = metrics.Where(item => !string.IsNullOrWhiteSpace(item.Query))
+                .GroupBy(item => new { item.Query, item.Page })
+                .Select(group =>
+                {
+                    var impressions = group.Sum(item => item.Impressions);
+                    var clicks = group.Sum(item => item.Clicks);
+                    var position = impressions == 0 ? group.Average(item => item.Position) : group.Sum(item => item.Position * item.Impressions) / impressions;
+                    return new Candidate(group.Key.Query.Trim(), group.Key.Page.Trim(), impressions, clicks,
+                        impressions == 0 ? 0 : clicks / impressions, position);
+                })
+                .Where(item => item.Impressions >= settings.MinimumImpressions && item.Position >= settings.MinimumPosition &&
+                    item.Position <= settings.MaximumPosition && item.Ctr <= settings.MaximumCtr)
+                .OrderByDescending(item => item.Impressions)
+                .ThenBy(item => item.Position)
+                .ToList();
+
+            var eligibleCandidate = candidates.FirstOrDefault(item => !HasContentDuplicate(item.Query, content));
+            if (eligibleCandidate is null) return Failed("NO_ELIGIBLE_SEO_OPPORTUNITY", "No hay oportunidades nuevas que superen los umbrales y la comprobación de duplicados.", settings.Model);
+            candidate = eligibleCandidate;
+
+            opportunity = opportunities.FirstOrDefault(item => Normalize(item.Query) == Normalize(candidate.Query));
+            if (opportunity is not null && content.Any(item => item.SeoOpportunityId == opportunity.Id))
+                return Failed("NO_ELIGIBLE_SEO_OPPORTUNITY", "La oportunidad disponible ya tiene una pieza editorial asociada.", settings.Model);
+        }
 
         var now = DateTimeOffset.UtcNow;
         if (opportunity is null)

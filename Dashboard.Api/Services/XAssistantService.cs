@@ -76,18 +76,17 @@ public sealed class XAssistantService(
         var settings = await db.XAssistantSettings.SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken) ?? Defaults(projectId);
         if (!settings.IsEnabled) return Failed("X_ASSISTANT_DISABLED", "El asistente de X está pausado.");
 
+        var candidate = await FindCandidateAsync(projectId, cancellationToken);
         var imported = 0;
         var xCost = 0m;
-        if (settings.ApiReadEnabled)
+        if (candidate is null && settings.ApiReadEnabled)
         {
             var sync = await SyncRecentAsync(project, settings, cancellationToken);
             if (!sync.Succeeded) return Failed(sync.ErrorCode, sync.ErrorMessage, importedPosts: sync.ImportedPosts, xCost: sync.EstimatedCostUsd);
             imported = sync.ImportedPosts;
             xCost = sync.EstimatedCostUsd;
+            candidate = await FindCandidateAsync(projectId, cancellationToken);
         }
-
-        var candidate = (await db.XSourcePosts.Where(item => item.ProjectId == projectId && item.Status == "detected")
-            .ToListAsync(cancellationToken)).OrderByDescending(Score).ThenByDescending(item => item.PostedAt).FirstOrDefault();
         if (candidate is null) return Failed("NO_X_OPPORTUNITY", "No hay publicaciones pendientes. Importa una URL manualmente o habilita la búsqueda de pago.", importedPosts: imported, xCost: xCost);
         if (string.IsNullOrWhiteSpace(GeminiApiKey)) return Failed("GEMINI_KEY_NOT_CONFIGURED", "Falta GEMINI_API_KEY en .env.", importedPosts: imported, xCost: xCost);
 
@@ -169,14 +168,35 @@ public sealed class XAssistantService(
         }
     }
 
+    public async Task<XSyncResult> SyncRecentAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var project = await db.Projects.SingleOrDefaultAsync(item => item.Id == projectId, cancellationToken)
+            ?? throw new KeyNotFoundException();
+        var settings = await db.XAssistantSettings.SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken) ?? Defaults(projectId);
+        if (!settings.ApiReadEnabled)
+            return new(false, "X_API_READ_DISABLED", "La lectura pagada de X está desactivada.", 0, 0, 0);
+        return await SyncRecentAsync(project, settings, cancellationToken);
+    }
+
+    private async Task<XSourcePost?> FindCandidateAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var detected = await db.XSourcePosts.Where(item => item.ProjectId == projectId && item.Status == "detected")
+            .ToListAsync(cancellationToken);
+        var staleThreshold = DateTimeOffset.UtcNow.AddDays(-7);
+        var stale = detected.Where(item => item.DataSource == "x_api" && item.PostedAt < staleThreshold).ToList();
+        foreach (var item in stale) item.Status = "dismissed";
+        if (stale.Count > 0) await db.SaveChangesAsync(cancellationToken);
+        return detected.Except(stale).OrderByDescending(Score).ThenByDescending(item => item.PostedAt).FirstOrDefault();
+    }
+
     private async Task<XSyncResult> SyncRecentAsync(Project project, XAssistantSettings settings, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(BearerToken)) return new(false, "X_BEARER_TOKEN_NOT_CONFIGURED", "Falta X_BEARER_TOKEN en .env.", 0, 0);
-        if (string.IsNullOrWhiteSpace(settings.SearchQuery)) return new(false, "X_SEARCH_QUERY_REQUIRED", "Configura una búsqueda antes de habilitar lecturas pagadas.", 0, 0);
+        if (string.IsNullOrWhiteSpace(BearerToken)) return new(false, "X_BEARER_TOKEN_NOT_CONFIGURED", "Falta X_BEARER_TOKEN en .env.", 0, 0, 0);
+        if (string.IsNullOrWhiteSpace(settings.SearchQuery)) return new(false, "X_SEARCH_QUERY_REQUIRED", "Configura una búsqueda antes de habilitar lecturas pagadas.", 0, 0, 0);
         var maximumCost = settings.MaximumPostsPerSync * settings.ReadCostUsdPerPost;
         var budget = await GetOrCreateBudgetAsync(project.Id, cancellationToken);
         if (!await FitsBudgetAsync(project, budget, maximumCost, cancellationToken))
-            return new(false, "BUDGET_BLOCKED", "El costo máximo de la consulta supera el presupuesto disponible.", 0, 0);
+            return new(false, "BUDGET_BLOCKED", "El costo máximo de la consulta supera el presupuesto disponible.", 0, 0, 0);
 
         var now = DateTimeOffset.UtcNow;
         var rate = await EnsureRateAsync(project.Id, "x", "recent-search", settings.ReadCostUsdPerPost, now, cancellationToken);
@@ -214,7 +234,7 @@ public sealed class XAssistantService(
             settings.LastError = string.Empty;
             settings.UpdatedAt = now;
             await db.SaveChangesAsync(cancellationToken);
-            return new(true, string.Empty, string.Empty, imported, actualCost);
+            return new(true, string.Empty, string.Empty, posts.Count, imported, actualCost);
         }
         catch (XApiException exception)
         {
@@ -223,7 +243,7 @@ public sealed class XAssistantService(
             settings.LastError = exception.Message;
             settings.UpdatedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
-            return new(false, exception.Code, exception.Message, 0, 0);
+            return new(false, exception.Code, exception.Message, 0, 0, 0);
         }
     }
 
@@ -318,7 +338,7 @@ public sealed class XAssistantService(
         Cada respuesta debe caber en 235 caracteres para reservar espacio a un enlace medible. No incluyas enlaces ni la mención del autor; el sistema aplica un formato uniforme y abre el compositor de respuesta de X.
         Toda salida quedará pendiente de revisión humana; no será publicada por la API.
         Estilo solicitado: {{settings.ToneInstructions}}
-        Autor: @{{source.AuthorUsername}}
+        Autor: {{(string.IsNullOrWhiteSpace(source.AuthorUsername) ? "cuenta no incluida en la lectura para evitar consultar recursos de usuario adicionales" : $"@{source.AuthorUsername}")}}
         Post: {{source.Text}}
         Métricas disponibles: {{source.LikeCount}} me gusta, {{source.ReplyCount}} respuestas, {{source.RepostCount}} republicaciones, {{source.QuoteCount}} citas.
         Devuelve exclusivamente JSON válido con: recommendedReply, alternativeOne, alternativeTwo, rationale, riskNotes.
@@ -398,6 +418,5 @@ public sealed class XAssistantService(
         int importedPosts = 0, decimal xCost = 0) => new(false, code, message, null, string.Empty, model, input, output,
             importedPosts, xCost, string.Empty, string.Empty, string.Empty, string.Empty);
 
-    private sealed record XSyncResult(bool Succeeded, string ErrorCode, string ErrorMessage, int ImportedPosts, decimal EstimatedCostUsd);
     private sealed record GeneratedReplies(string RecommendedReply, string AlternativeOne, string AlternativeTwo, string Rationale, string? RiskNotes);
 }

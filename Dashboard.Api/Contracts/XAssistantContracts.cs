@@ -106,3 +106,11 @@ public sealed record XAssistantRunResult(
     string AlternativeOne,
     string AlternativeTwo,
     string TrackingUrl);
+
+public sealed record XSyncResult(
+    bool Succeeded,
+    string ErrorCode,
+    string ErrorMessage,
+    int ReadPosts,
+    int ImportedPosts,
+    decimal EstimatedCostUsd);

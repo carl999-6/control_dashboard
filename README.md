@@ -69,7 +69,7 @@ Para el asistente de X no necesitas credenciales en el modo manual gratuito. Abr
 
 Telegram recibe el enlace del post original, las tres alternativas en bloques uniformes y un botón nativo **Copiar** para cada respuesta. Por seguridad y brevedad, esos botones copian solo el texto: desde Telegram se abre el post, se pega y se confirma manualmente. El dashboard conserva **Responder en X**, que abre el compositor e incluye también el UTM. Una vez configurada la 7F, PostHog capturará la llegada al sitio y la API importará sus conteos agregados; construir el enlace por sí solo no registra una visita.
 
-La búsqueda reciente automática es opcional y de solo lectura. Requiere `X_BEARER_TOKEN` en `.env`, créditos disponibles en X y activar explícitamente **Lectura pagada**. Antes de cada consulta se comprueba el costo máximo contra el presupuesto del proyecto. La tarifa por post es configurable porque X puede cambiar sus precios. El backend no incluye ninguna operación para publicar, responder, dar me gusta ni seguir cuentas.
+La búsqueda reciente automática es opcional y de solo lectura. Requiere `X_BEARER_TOKEN` en `.env`, créditos disponibles en X y activar explícitamente **Lectura pagada**. **Generar siguiente propuesta** consume primero la cola local y solo consulta X si está vacía; **Sincronizar X ahora** permite forzar una lectura separada. La consulta solicita posts y métricas públicas, pero no perfiles de autor, para no añadir ese recurso al costo estimado. Antes de cada lectura se comprueba el costo máximo contra el presupuesto del proyecto. La tarifa por post es configurable porque X puede cambiar sus precios. El backend no incluye ninguna operación para publicar, responder, dar me gusta ni seguir cuentas.
 
 ### Datos locales y migraciones
 
@@ -103,6 +103,8 @@ Selecciona un proyecto y abre **SEO y contenido** para:
 
 Las transiciones se validan en la API. El conector de WordPress fija `status: draft` dentro del backend, comprueba que WordPress confirme ese mismo estado y evita duplicar un post al reintentar. El enlace guardado abre el editor real para que la revisión y publicación sean manuales.
 
+Si Search Console todavía no tiene volumen suficiente, crea una oportunidad manual, añade evidencia e hipótesis y déjala en estado **Seleccionada**. El flujo de Gemini prioriza esa selección, conserva el origen `manual`, comprueba que no exista contenido similar y continúa con validación y WordPress `draft`; no la presenta como un hallazgo de Google.
+
 ### Ejecuciones y costos
 
 Selecciona un proyecto y abre **Operaciones** o **Costos de API** para:
@@ -129,7 +131,7 @@ Selecciona un proyecto y abre **Automatizaciones** para:
 
 En la misma pantalla, el bloque de **Google Search Console** permite autorizar una propiedad, configurar de 7 a 90 días de historial y hasta 25,000 filas, sincronizar manualmente y consultar clics, impresiones, CTR, posición media y consultas principales. La programación diaria utiliza ese mismo flujo. Para evitar datos parciales, la ventana termina dos días antes de la fecha actual.
 
-Los bloques **Gemini para SEO y X** y **WordPress** ejecutan el flujo `métricas de Search Console → umbrales → deduplicación → oportunidad → Gemini → validación → draft local → WordPress draft → historial → Telegram`. SEO y X tienen topes diarios propios y un límite compartido configurable. Si no hay datos, no existe una oportunidad elegible, se alcanzó el límite diario o falta la API key, el flujo se bloquea antes de consumir cuota. Un `429` detiene la ejecución y notifica que la cuota gratuita se agotó; nunca activa otro proveedor. Si WordPress falla, el borrador local se conserva para reintento manual y no se crea una publicación en vivo.
+Los bloques **Gemini para SEO y X** y **WordPress** ejecutan el flujo `oportunidad de Search Console o selección manual → deduplicación → Gemini → validación → draft local → WordPress draft → historial → Telegram`. SEO y X tienen topes diarios propios y un límite compartido configurable. Si no hay una oportunidad elegible, se alcanzó el límite diario o falta la API key, el flujo se bloquea antes de consumir cuota. Un `429` detiene la ejecución y notifica que la cuota gratuita se agotó; nunca activa otro proveedor. Si WordPress falla, el borrador local se conserva para reintento manual y no se crea una publicación en vivo.
 
 La API lee `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` desde el `.env` local. Nunca guarda ni devuelve esos valores. Sin ambos secretos cambia automáticamente al modo `simulated`; en pruebas automatizadas siempre se fuerza ese modo para impedir llamadas externas accidentales.
 

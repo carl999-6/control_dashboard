@@ -16,9 +16,7 @@ public sealed class XApiClient : IXApiClient, IDisposable
         {
             ["query"] = query,
             ["max_results"] = Math.Clamp(maximumResults, 10, 100).ToString(),
-            ["tweet.fields"] = "created_at,lang,public_metrics,author_id",
-            ["expansions"] = "author_id",
-            ["user.fields"] = "username",
+            ["tweet.fields"] = "created_at,lang,public_metrics",
         };
         var url = QueryString.Create(parameters).ToUriComponent();
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.x.com/2/tweets/search/recent{url}");
@@ -30,19 +28,14 @@ public sealed class XApiClient : IXApiClient, IDisposable
         {
             using var document = JsonDocument.Parse(body);
             var root = document.RootElement;
-            var users = new Dictionary<string, string>();
-            if (root.TryGetProperty("includes", out var includes) && includes.TryGetProperty("users", out var userItems))
-                foreach (var user in userItems.EnumerateArray()) users[user.GetProperty("id").GetString() ?? string.Empty] = user.GetProperty("username").GetString() ?? string.Empty;
             if (!root.TryGetProperty("data", out var data)) return [];
             var result = new List<XRecentPost>();
             foreach (var item in data.EnumerateArray())
             {
                 var id = item.GetProperty("id").GetString() ?? string.Empty;
-                var authorId = item.TryGetProperty("author_id", out var author) ? author.GetString() ?? string.Empty : string.Empty;
-                users.TryGetValue(authorId, out var username);
                 var metrics = item.TryGetProperty("public_metrics", out var publicMetrics) ? publicMetrics : default;
                 result.Add(new XRecentPost(
-                    id, $"https://x.com/{username ?? "i"}/status/{id}", username ?? string.Empty,
+                    id, $"https://x.com/i/status/{id}", string.Empty,
                     item.GetProperty("text").GetString() ?? string.Empty,
                     item.TryGetProperty("lang", out var language) ? language.GetString() ?? string.Empty : string.Empty,
                     Metric(metrics, "like_count"), Metric(metrics, "reply_count"), Metric(metrics, "retweet_count", "repost_count"),

@@ -587,6 +587,69 @@ public sealed class ApiIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task X_paid_sync_is_explicit_and_generation_reuses_the_local_queue()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var project = await CreateProjectAsync(client, "Cola eficiente X", "fyrstudios.com");
+        _ = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{project.Id}/automations");
+
+        var settingsResponse = await client.PutAsJsonAsync($"/api/projects/{project.Id}/x-assistant/settings",
+            new XAssistantSettingsRequest(true, true, "diseño web", "es", 10, 0.005m,
+                "Responder con utilidad y sin inventar datos.", "/servicios", "x-assistant"));
+        settingsResponse.EnsureSuccessStatusCode();
+
+        var fakeX = Assert.IsType<FakeXApiClient>(_factory.Services.GetRequiredService<IXApiClient>());
+        var callsBefore = fakeX.SearchCalls;
+        var syncResponse = await client.PostAsync($"/api/projects/{project.Id}/x-assistant/sync", null);
+        syncResponse.EnsureSuccessStatusCode();
+        var sync = (await syncResponse.Content.ReadFromJsonAsync<XSyncResult>())!;
+        Assert.True(sync.Succeeded);
+        Assert.Equal(1, sync.ReadPosts);
+        Assert.Equal(1, sync.ImportedPosts);
+        Assert.Equal(0.005m, sync.EstimatedCostUsd);
+        Assert.Equal(callsBefore + 1, fakeX.SearchCalls);
+
+        var runResponse = await client.PostAsync($"/api/projects/{project.Id}/automations/x_response_pipeline/run", null);
+        runResponse.EnsureSuccessStatusCode();
+        var run = (await runResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.Equal("succeeded", run.Status);
+        Assert.Equal(callsBefore + 1, fakeX.SearchCalls);
+        var executions = await client.GetFromJsonAsync<List<ExecutionResponse>>($"/api/projects/{project.Id}/operations/executions");
+        Assert.Single(executions!, item => item.Provider == "x" && item.Flow == "x_response_pipeline");
+    }
+
+    [Fact]
+    public async Task Gemini_can_use_a_selected_manual_seo_opportunity_without_search_console_data()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
+        (await client.PostAsJsonAsync("/api/auth/login", new LoginRequest("test-password"))).EnsureSuccessStatusCode();
+        var project = await CreateProjectAsync(client, "SEO manual", "fyrstudios.com");
+        _ = await client.GetFromJsonAsync<List<AutomationScheduleResponse>>($"/api/projects/{project.Id}/automations");
+        var settingsUpdate = await client.PutAsJsonAsync($"/api/projects/{project.Id}/integrations/gemini/settings",
+            new GeminiSettingsRequest(true, "gemini-test-free", 20, 4, 30, 5, 1, 1, 2, 300, 4096, "Carlos"));
+        settingsUpdate.EnsureSuccessStatusCode();
+
+        var opportunityResponse = await client.PostAsJsonAsync($"/api/projects/{project.Id}/seo/opportunities", new SeoOpportunityRequest(
+            "cómo elegir una agencia de diseño web", "/servicios", "Tema validado manualmente con preguntas frecuentes de clientes.",
+            "Una guía puede aclarar criterios de decisión.", "selected", 0, 0));
+        opportunityResponse.EnsureSuccessStatusCode();
+        var opportunity = (await opportunityResponse.Content.ReadFromJsonAsync<SeoOpportunityResponse>())!;
+
+        var runResponse = await client.PostAsync($"/api/projects/{project.Id}/automations/seo_content_pipeline/run", null);
+        runResponse.EnsureSuccessStatusCode();
+        var run = (await runResponse.Content.ReadFromJsonAsync<AutomationRunResponse>())!;
+        Assert.True(run.Status == "succeeded", $"{run.ErrorCode}: {run.ErrorMessage}");
+
+        var opportunities = await client.GetFromJsonAsync<List<SeoOpportunityResponse>>($"/api/projects/{project.Id}/seo/opportunities");
+        var converted = Assert.Single(opportunities!, item => item.Id == opportunity.Id);
+        Assert.Equal("manual", converted.DataSource);
+        Assert.Equal("converted", converted.Status);
+        var content = await client.GetFromJsonAsync<List<ContentPieceResponse>>($"/api/projects/{project.Id}/seo/content");
+        Assert.Contains(content!, item => item.SeoOpportunityId == opportunity.Id && item.Status == "sent_draft" && item.WordPressStatus == "draft");
+    }
+
+    [Fact]
     public async Task PostHog_sync_is_aggregated_idempotent_and_isolated_by_project()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });

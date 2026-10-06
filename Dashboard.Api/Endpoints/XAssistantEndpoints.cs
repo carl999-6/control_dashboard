@@ -57,6 +57,16 @@ public static class XAssistantEndpoints
             catch (ArgumentException exception) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["url"] = [exception.Message] }); }
         });
 
+        group.MapPost("/sync", async (Guid projectId, XAssistantService service, CancellationToken ct) =>
+        {
+            try
+            {
+                var result = await service.SyncRecentAsync(projectId, ct);
+                return result.Succeeded ? Results.Ok(result) : Results.Problem(result.ErrorMessage, statusCode: 409, title: result.ErrorCode);
+            }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+
         group.MapPost("/sources/{sourceId:guid}/dismiss", async (Guid projectId, Guid sourceId, DashboardDbContext db, CancellationToken ct) =>
         {
             var item = await db.XSourcePosts.SingleOrDefaultAsync(value => value.ProjectId == projectId && value.Id == sourceId, ct);

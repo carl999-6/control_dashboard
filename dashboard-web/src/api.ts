@@ -452,6 +452,15 @@ export type XAssistantSettings = {
 
 export type XAssistantSettingsInput = Pick<XAssistantSettings, 'isEnabled' | 'apiReadEnabled' | 'searchQuery' | 'language' | 'maximumPostsPerSync' | 'readCostUsdPerPost' | 'toneInstructions' | 'landingPath' | 'utmCampaign'>
 
+export type XSyncResult = {
+  succeeded: boolean
+  errorCode: string
+  errorMessage: string
+  readPosts: number
+  importedPosts: number
+  estimatedCostUsd: number
+}
+
 export type XSourcePost = {
   id: string
   externalPostId: string
@@ -627,6 +636,7 @@ export const api = {
   testWordPressConnection: (projectId: string) => request<{ succeeded: boolean; status: string; message: string }>(`/api/projects/${projectId}/integrations/wordpress/test`, { method: 'POST' }),
   getXAssistantSettings: (projectId: string) => request<XAssistantSettings>(`/api/projects/${projectId}/x-assistant/settings`),
   updateXAssistantSettings: (projectId: string, settings: XAssistantSettingsInput) => request<XAssistantSettings>(`/api/projects/${projectId}/x-assistant/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
+  syncXAssistant: (projectId: string) => request<XSyncResult>(`/api/projects/${projectId}/x-assistant/sync`, { method: 'POST' }),
   getXSources: (projectId: string) => request<XSourcePost[]>(`/api/projects/${projectId}/x-assistant/sources`),
   importXSource: (projectId: string, item: XSourcePostInput) => request<XSourcePost>(`/api/projects/${projectId}/x-assistant/sources`, { method: 'POST', body: JSON.stringify(item) }),
   dismissXSource: (projectId: string, sourceId: string) => request<XSourcePost>(`/api/projects/${projectId}/x-assistant/sources/${sourceId}/dismiss`, { method: 'POST' }),
